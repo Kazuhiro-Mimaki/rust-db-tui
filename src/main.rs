@@ -1,9 +1,9 @@
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{io, thread, time::Duration};
+use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -11,27 +11,35 @@ use tui::{
     Frame, Terminal,
 };
 
-fn main() -> Result<(), io::Error> {
-    // setup terminal
+fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode().unwrap();
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|f| render_layout(f))?;
+    loop {
+        terminal.draw(|f| render_layout(f))?;
 
-    thread::sleep(Duration::from_millis(5000));
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('q') => {
+                    disable_raw_mode()?;
+                    terminal.show_cursor()?;
+                    break;
+                }
+                KeyCode::Down => {}
+                KeyCode::Up => {}
+                _ => {}
+            }
+        }
+    }
 
-    // restore terminal
-    disable_raw_mode().unwrap();
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
-    )
-    .unwrap();
-    terminal.show_cursor()?;
+    )?;
 
     Ok(())
 }
