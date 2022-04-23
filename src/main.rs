@@ -12,7 +12,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Frame, Terminal,
 };
 
@@ -23,11 +23,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let mut table_list_state = ListState::default();
+    table_list_state.select(Some(0));
+
     // Set config
     dotenv().ok();
 
     loop {
-        terminal.draw(|f| render_layout(f))?;
+        terminal.draw(|f| render_layout(f, &mut table_list_state))?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -36,8 +39,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                     terminal.show_cursor()?;
                     break;
                 }
-                KeyCode::Down => {}
-                KeyCode::Up => {}
+                KeyCode::Down => {
+                    if let Some(selected) = table_list_state.selected() {
+                        table_list_state.select(Some(selected + 1));
+                    }
+                }
+                KeyCode::Up => {
+                    if let Some(selected) = table_list_state.selected() {
+                        table_list_state.select(Some(selected - 1));
+                    }
+                }
                 _ => {}
             }
         }
@@ -53,7 +64,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::main]
-async fn render_layout<B: Backend>(f: &mut Frame<B>) {
+async fn render_layout<B: Backend>(f: &mut Frame<B>, table_list_state: &mut ListState) {
     let size = f.size();
 
     let block_1 = Block::default().title("Block 1").borders(Borders::ALL);
@@ -83,7 +94,7 @@ async fn render_layout<B: Backend>(f: &mut Frame<B>) {
         })
         .collect();
 
-    let tables = List::new(items).block(block_2_1).highlight_style(
+    let table_list = List::new(items).block(block_2_1).highlight_style(
         Style::default()
             .bg(Color::Yellow)
             .fg(Color::Black)
@@ -102,6 +113,6 @@ async fn render_layout<B: Backend>(f: &mut Frame<B>) {
         .split(chunks_1[1]);
 
     f.render_widget(block_1, chunks_1[0]);
-    f.render_widget(tables, chunks_2[0]);
+    f.render_stateful_widget(table_list, chunks_2[0], table_list_state);
     f.render_widget(block_2_2, chunks_2[1]);
 }
