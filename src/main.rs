@@ -4,10 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dotenv::dotenv;
-use sqlx::{
-    mysql::{MySqlRow},
-    Column, MySqlPool, Row,
-};
+use sqlx::{mysql::MySqlRow, Column, MySqlPool, Row};
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -18,6 +15,8 @@ use tui::{
     widgets::{Block, Borders, Cell, List, ListItem, Row as WdgRow, Table, TableState},
     Frame, Terminal,
 };
+
+mod utils;
 
 struct App {
     col_section_start_idx: usize,
@@ -74,17 +73,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
     let table_rows = sqlx::query(&get_tables_query.as_str())
         .fetch_all(&pool)
-        .await
-        .unwrap();
+        .await?;
 
     // ====================
     // Show records for the table
     // ====================
     let get_records = format!("{} {}", "SELECT * FROM", &env::var("TABLE_NAME").unwrap());
-    let record_rows = sqlx::query(&get_records.as_str())
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+    let record_rows = sqlx::query(&get_records.as_str()).fetch_all(&pool).await?;
 
     loop {
         terminal.draw(|f| {
@@ -187,7 +182,7 @@ fn render_layout<B: Backend>(
         let mut new_row = vec![];
         for column in row.columns() {
             let column_name = column.name();
-            new_row.push(convert_column_value_to_string(&row, column_name));
+            new_row.push(utils::convert_column_value_to_string(&row, column_name));
         }
         records.push(new_row);
     }
@@ -220,15 +215,15 @@ fn render_layout<B: Backend>(
             .enumerate()
             .map(|(column_idx, c)| {
                 // このcolumn_idxに入るのは0~9
-                Cell::from(c.to_string()).style(Style::default().bg(
+                Cell::from(c.to_string()).style(
                     if column_idx == app.selected_column_index - app.col_section_start_idx
                         && Some(row_index) == table_list_state.selected()
                     {
-                        Color::Blue
+                        Style::default().bg(Color::Blue)
                     } else {
-                        Color::Reset
+                        Style::default()
                     },
-                ))
+                )
             });
         WdgRow::new(cells).bottom_margin(1)
     });
@@ -264,13 +259,4 @@ fn render_layout<B: Backend>(
     f.render_widget(block_1, chunks_1[0]);
     f.render_widget(table_list, chunks_2[0]);
     f.render_stateful_widget(record_list, chunks_2[1], table_list_state);
-}
-
-fn convert_column_value_to_string(row: &MySqlRow, column_name: &str) -> String {
-    if let Ok(value) = row.try_get(column_name) {
-        let value: String = value;
-        value
-    } else {
-        String::from("null")
-    }
 }

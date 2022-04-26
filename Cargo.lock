@@ -1172,6 +1172,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "bytes",
+ "chrono",
  "crossbeam-queue",
  "digest",
  "either",
