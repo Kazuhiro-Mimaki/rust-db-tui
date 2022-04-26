@@ -1137,6 +1137,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tui",
+ "usize_cast",
 ]
 
 [[package]]
@@ -1448,6 +1449,12 @@ dependencies = [
  "matches",
  "percent-encoding",
 ]
+
+[[package]]
+name = "usize_cast"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "810f3a98a85147e3ad2a1331aa6dac66490e802d65fa0ab283c383058e3f9751"
 
 [[package]]
 name = "vcpkg"

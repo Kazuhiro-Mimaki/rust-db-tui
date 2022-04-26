@@ -16,3 +16,4 @@ sqlx = { version = "0.5.13", features = ["mysql", "runtime-actix-native-tls", "d
 dotenv = "0.15.0"
 tokio = { version = "1.17.0", features = ["full"] }
 anyhow = "1.0.57"
+usize_cast = "1.0.0"
