@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dotenv::dotenv;
-use sqlx::{mysql::MySqlRow, Column, MySqlPool, Row};
+use sqlx::{mysql::MySqlRow, Column, Row};
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -16,6 +16,7 @@ use tui::{
     Frame, Terminal,
 };
 
+mod db;
 mod utils;
 
 struct App {
@@ -56,30 +57,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Set config
     dotenv().ok();
 
-    // ====================
-    // Set database
-    // ====================
-    let pool = MySqlPool::connect(&env::var("DATABASE_URL").unwrap())
-        .await
-        .unwrap();
+    let mysql_client = db::MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
 
-    // ====================
-    // Show table name list
-    // ====================
-    let get_tables_query = format!(
-        "{} {}",
-        "SHOW TABLE STATUS FROM",
-        &env::var("DB_NAME").unwrap()
-    );
-    let table_rows = sqlx::query(&get_tables_query.as_str())
-        .fetch_all(&pool)
-        .await?;
+    let table_rows = mysql_client
+        .get_table_list(&env::var("DB_NAME").unwrap())
+        .await;
 
-    // ====================
-    // Show records for the table
-    // ====================
-    let get_records = format!("{} {}", "SELECT * FROM", &env::var("TABLE_NAME").unwrap());
-    let record_rows = sqlx::query(&get_records.as_str()).fetch_all(&pool).await?;
+    let record_rows = mysql_client
+        .get_record_list(&env::var("TABLE_NAME").unwrap())
+        .await;
 
     loop {
         terminal.draw(|f| {
