@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dotenv::dotenv;
-use sqlx::{mysql::MySqlRow, Column, Row};
+use sqlx::{mysql::MySqlRow, Row};
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -12,7 +12,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Cell, List, ListItem, Row as WdgRow, Table, TableState},
+    widgets::{Block, Borders, Cell, List, ListItem, Row as WdgRow, Table},
     Frame, Terminal,
 };
 
@@ -22,7 +22,6 @@ mod utils;
 struct App {
     col_section_start_idx: usize,
     col_section_end_idx: usize,
-    selected_column_index: usize,
 }
 
 impl App {
@@ -43,41 +42,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut table_list_state = TableState::default();
-    table_list_state.select(Some(0));
-
-    let mut mut_headers = vec![];
-
     let mut app = App {
         col_section_start_idx: 0,
         col_section_end_idx: 9,
-        selected_column_index: 0,
     };
 
     // Set config
     dotenv().ok();
 
+    let table_name = &env::var("TABLE_NAME").unwrap();
+
     let mysql_client = db::MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
 
-    let table_rows = mysql_client
+    let table_list = mysql_client
         .get_table_list(&env::var("DB_NAME").unwrap())
         .await;
 
-    let record_rows = mysql_client
-        .get_record_list(&env::var("TABLE_NAME").unwrap())
-        .await;
+    let record_rows = mysql_client.get_record_list(table_name).await;
+
+    let (headers, records) = db::parse_sql_records(record_rows);
+    let mut table_struct = db::TableStruct::new(table_name.to_string(), headers, records);
 
     loop {
-        terminal.draw(|f| {
-            render_layout(
-                f,
-                &mut table_list_state,
-                &mut mut_headers,
-                &mut app,
-                &table_rows,
-                &record_rows,
-            )
-        })?;
+        terminal.draw(|f| render_layout(f, &mut app, &table_list, &mut table_struct))?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -86,27 +73,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     terminal.show_cursor()?;
                     break;
                 }
-                KeyCode::Down => {
-                    if let Some(selected) = table_list_state.selected() {
-                        table_list_state.select(Some(selected + 1));
-                    }
-                }
                 KeyCode::Up => {
-                    if let Some(selected) = table_list_state.selected() {
-                        if selected != 0 {
-                            table_list_state.select(Some(selected - 1));
-                        };
-                    }
+                    table_struct.scroll_up();
+                }
+                KeyCode::Down => {
+                    table_struct.scroll_down();
                 }
                 KeyCode::Right => {
-                    if app.selected_column_index < mut_headers.len() - 1 {
-                        app.selected_column_index += 1;
-                    }
+                    table_struct.scroll_right();
                 }
                 KeyCode::Left => {
-                    if app.selected_column_index != 0 {
-                        app.selected_column_index -= 1;
-                    }
+                    table_struct.scroll_left();
                 }
                 KeyCode::Enter => {
                     break;
@@ -127,11 +104,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_layout<B: Backend>(
     f: &mut Frame<'_, B>,
-    table_list_state: &mut TableState,
-    mut_headers: &mut Vec<String>,
     app: &mut App,
-    table_rows: &Vec<MySqlRow>,
-    record_rows: &Vec<MySqlRow>,
+    table_list: &Vec<MySqlRow>,
+    table_struct: &mut db::TableStruct,
 ) {
     let size = f.size();
 
@@ -139,7 +114,7 @@ fn render_layout<B: Backend>(
     let block_2_1 = Block::default().title("Tables").borders(Borders::ALL);
     let block_2_2 = Block::default().title("Records").borders(Borders::ALL);
 
-    let tables: Vec<_> = table_rows
+    let tables: Vec<_> = table_list
         .iter()
         .map(|table| {
             ListItem::new(Spans::from(vec![Span::styled(
@@ -156,63 +131,52 @@ fn render_layout<B: Backend>(
             .add_modifier(Modifier::BOLD),
     );
 
-    let mut records = vec![];
-
-    for row in record_rows.iter() {
-        *mut_headers = row
-            .columns()
-            .iter()
-            .map(|column| column.name().to_string())
-            .collect();
-
-        let mut new_row = vec![];
-        for column in row.columns() {
-            let column_name = column.name();
-            new_row.push(utils::convert_column_value_to_string(&row, column_name));
-        }
-        records.push(new_row);
-    }
-
-    if app.selected_column_index > app.col_section_end_idx {
-        app.set_col_end_idx(app.selected_column_index);
+    if table_struct.selected_column_index > app.col_section_end_idx {
+        app.set_col_end_idx(table_struct.selected_column_index);
         app.set_col_start_idx(app.col_section_end_idx - 9);
-    } else if app.selected_column_index < app.col_section_start_idx {
-        app.set_col_start_idx(app.selected_column_index);
+    } else if table_struct.selected_column_index < app.col_section_start_idx {
+        app.set_col_start_idx(table_struct.selected_column_index);
         app.set_col_end_idx(app.col_section_start_idx + 9);
     }
 
-    let header_cells = mut_headers[app.col_section_start_idx..]
+    let header_cells = table_struct.headers[app.col_section_start_idx..]
         .iter()
         .enumerate()
-        .map(|(column_index, h)| {
+        .map(|(_, h)| {
             Cell::from(h.to_string()).style(Style::default().add_modifier(Modifier::BOLD))
         });
     let header_layout = WdgRow::new(header_cells).height(1).bottom_margin(1);
 
-    let record_layout = records.iter().enumerate().map(|(row_index, item)| {
-        // let height = item
-        //     .iter()
-        //     .map(|content| content.chars().filter(|c| *c == '\n').count())
-        //     .max()
-        //     .unwrap_or(0)
-        //     + 1;
-        let cells = item[app.col_section_start_idx..]
-            .iter()
-            .enumerate()
-            .map(|(column_idx, c)| {
-                // このcolumn_idxに入るのは0~9
-                Cell::from(c.to_string()).style(
-                    if column_idx == app.selected_column_index - app.col_section_start_idx
-                        && Some(row_index) == table_list_state.selected()
-                    {
-                        Style::default().bg(Color::Blue)
-                    } else {
-                        Style::default()
-                    },
-                )
-            });
-        WdgRow::new(cells).bottom_margin(1)
-    });
+    let record_layout = table_struct
+        .records
+        .iter()
+        .enumerate()
+        .map(|(row_index, item)| {
+            // let height = item
+            //     .iter()
+            //     .map(|content| content.chars().filter(|c| *c == '\n').count())
+            //     .max()
+            //     .unwrap_or(0)
+            //     + 1;
+            let cells =
+                item[app.col_section_start_idx..]
+                    .iter()
+                    .enumerate()
+                    .map(|(column_idx, c)| {
+                        // このcolumn_idxに入るのは0~9
+                        Cell::from(c.to_string()).style(
+                            if column_idx
+                                == table_struct.selected_column_index - app.col_section_start_idx
+                                && Some(row_index) == table_struct.row_list_state.selected()
+                            {
+                                Style::default().bg(Color::Blue)
+                            } else {
+                                Style::default()
+                            },
+                        )
+                    });
+            WdgRow::new(cells).bottom_margin(1)
+        });
 
     let record_list = Table::new(record_layout)
         .header(header_layout)
@@ -244,5 +208,5 @@ fn render_layout<B: Backend>(
 
     f.render_widget(block_1, chunks_1[0]);
     f.render_widget(table_list, chunks_2[0]);
-    f.render_stateful_widget(record_list, chunks_2[1], table_list_state);
+    f.render_stateful_widget(record_list, chunks_2[1], &mut table_struct.row_list_state);
 }
