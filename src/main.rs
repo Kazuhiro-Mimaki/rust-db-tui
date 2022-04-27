@@ -19,21 +19,6 @@ use tui::{
 mod db;
 mod utils;
 
-struct App {
-    col_section_start_idx: usize,
-    col_section_end_idx: usize,
-}
-
-impl App {
-    fn set_col_start_idx(&mut self, new_col_section_start_idx: usize) {
-        self.col_section_start_idx = new_col_section_start_idx;
-    }
-
-    fn set_col_end_idx(&mut self, new_col_section_end_idx: usize) {
-        self.col_section_end_idx = new_col_section_end_idx;
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     enable_raw_mode().unwrap();
@@ -41,11 +26,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-
-    let mut app = App {
-        col_section_start_idx: 0,
-        col_section_end_idx: 9,
-    };
 
     // Set config
     dotenv().ok();
@@ -64,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut table_struct = db::TableStruct::new(table_name.to_string(), headers, records);
 
     loop {
-        terminal.draw(|f| render_layout(f, &mut app, &table_list, &mut table_struct))?;
+        terminal.draw(|f| render_layout(f, &table_list, &mut table_struct))?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -74,16 +54,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     break;
                 }
                 KeyCode::Up => {
-                    table_struct.scroll_up();
+                    table_struct.move_up();
                 }
                 KeyCode::Down => {
-                    table_struct.scroll_down();
+                    table_struct.move_down();
                 }
                 KeyCode::Right => {
-                    table_struct.scroll_right();
+                    table_struct.move_right();
                 }
                 KeyCode::Left => {
-                    table_struct.scroll_left();
+                    table_struct.move_left();
                 }
                 KeyCode::Enter => {
                     break;
@@ -104,7 +84,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_layout<B: Backend>(
     f: &mut Frame<'_, B>,
-    app: &mut App,
     table_list: &Vec<MySqlRow>,
     table_struct: &mut db::TableStruct,
 ) {
@@ -131,15 +110,9 @@ fn render_layout<B: Backend>(
             .add_modifier(Modifier::BOLD),
     );
 
-    if table_struct.selected_column_index > app.col_section_end_idx {
-        app.set_col_end_idx(table_struct.selected_column_index);
-        app.set_col_start_idx(app.col_section_end_idx - 9);
-    } else if table_struct.selected_column_index < app.col_section_start_idx {
-        app.set_col_start_idx(table_struct.selected_column_index);
-        app.set_col_end_idx(app.col_section_start_idx + 9);
-    }
+    table_struct.update_visible_range();
 
-    let header_cells = table_struct.headers[app.col_section_start_idx..]
+    let header_cells = table_struct.headers[table_struct.visible_start_column_index..]
         .iter()
         .enumerate()
         .map(|(_, h)| {
@@ -158,23 +131,23 @@ fn render_layout<B: Backend>(
             //     .max()
             //     .unwrap_or(0)
             //     + 1;
-            let cells =
-                item[app.col_section_start_idx..]
-                    .iter()
-                    .enumerate()
-                    .map(|(column_idx, c)| {
-                        // このcolumn_idxに入るのは0~9
-                        Cell::from(c.to_string()).style(
-                            if column_idx
-                                == table_struct.selected_column_index - app.col_section_start_idx
-                                && Some(row_index) == table_struct.row_list_state.selected()
-                            {
-                                Style::default().bg(Color::Blue)
-                            } else {
-                                Style::default()
-                            },
-                        )
-                    });
+            let cells = item[table_struct.visible_start_column_index..]
+                .iter()
+                .enumerate()
+                .map(|(column_idx, c)| {
+                    // このcolumn_idxに入るのは0~9
+                    Cell::from(c.to_string()).style(
+                        if column_idx
+                            == table_struct.selected_column_index
+                                - table_struct.visible_start_column_index
+                            && Some(row_index) == table_struct.row_list_state.selected()
+                        {
+                            Style::default().bg(Color::Blue)
+                        } else {
+                            Style::default()
+                        },
+                    )
+                });
             WdgRow::new(cells).bottom_margin(1)
         });
 

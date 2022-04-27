@@ -40,6 +40,8 @@ pub struct TableStruct {
     pub selectable_column_range: usize,
     pub selected_column_index: usize,
     pub row_list_state: TableState,
+    pub visible_start_column_index: usize,
+    pub visible_end_column_index: usize,
 }
 
 impl TableStruct {
@@ -55,10 +57,12 @@ impl TableStruct {
             selectable_column_range: selectable_column_range,
             selected_column_index: 0,
             row_list_state: default_state,
+            visible_start_column_index: 0,
+            visible_end_column_index: 9,
         }
     }
 
-    pub fn scroll_up(&mut self) {
+    pub fn move_up(&mut self) {
         if let Some(selected) = self.row_list_state.selected() {
             if selected != 0 {
                 self.row_list_state.select(Some(selected - 1));
@@ -66,13 +70,13 @@ impl TableStruct {
         }
     }
 
-    pub fn scroll_down(&mut self) {
+    pub fn move_down(&mut self) {
         if let Some(selected) = self.row_list_state.selected() {
             self.row_list_state.select(Some(selected + 1));
         }
     }
 
-    pub fn scroll_right(&mut self) {
+    pub fn move_right(&mut self) {
         if self.records.is_empty() {
             return;
         }
@@ -82,7 +86,7 @@ impl TableStruct {
         self.selected_column_index += 1;
     }
 
-    pub fn scroll_left(&mut self) {
+    pub fn move_left(&mut self) {
         if self.records.is_empty() {
             return;
         }
@@ -90,6 +94,24 @@ impl TableStruct {
             return;
         }
         self.selected_column_index -= 1;
+    }
+
+    pub fn scroll_right(&mut self) {
+        self.visible_end_column_index = self.selected_column_index;
+        self.visible_start_column_index = self.visible_end_column_index - 9;
+    }
+
+    pub fn scroll_left(&mut self) {
+        self.visible_start_column_index = self.selected_column_index;
+        self.visible_end_column_index = self.visible_start_column_index + 9;
+    }
+
+    pub fn update_visible_range(&mut self) {
+        if self.selected_column_index > self.visible_end_column_index {
+            self.scroll_right();
+        } else if self.selected_column_index < self.visible_start_column_index {
+            self.scroll_left();
+        }
     }
 }
 
