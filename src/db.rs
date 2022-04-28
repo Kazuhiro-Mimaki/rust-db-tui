@@ -1,5 +1,3 @@
-use std::env;
-
 use sqlx::{mysql::MySqlRow, Column, MySql, MySqlPool, Pool, Row};
 use tui::widgets::TableState;
 
@@ -40,6 +38,7 @@ pub struct TableStruct {
     pub headers: Vec<String>,
     pub records: Vec<Vec<String>>,
     pub selectable_column_range: usize,
+    pub selectable_row_range: usize,
     pub selected_column_index: usize,
     pub row_list_state: TableState,
     pub visible_start_column_index: usize,
@@ -48,7 +47,8 @@ pub struct TableStruct {
 
 impl TableStruct {
     pub fn new(name: String, headers: Vec<String>, records: Vec<Vec<String>>) -> Self {
-        let selectable_column_range = headers.clone().len() - 1;
+        let selectable_column_range = headers.len().saturating_sub(1);
+        let selectable_row_range = records.len().saturating_sub(1);
         let mut default_state = TableState::default();
         default_state.select(Some(0));
 
@@ -57,6 +57,7 @@ impl TableStruct {
             headers: headers,
             records: records,
             selectable_column_range: selectable_column_range,
+            selectable_row_range: selectable_row_range,
             selected_column_index: 0,
             row_list_state: default_state,
             visible_start_column_index: 0,
@@ -74,6 +75,9 @@ impl TableStruct {
 
     pub fn move_down(&mut self) {
         if let Some(selected) = self.row_list_state.selected() {
+            if self.selectable_row_range <= selected {
+                return;
+            }
             self.row_list_state.select(Some(selected + 1));
         }
     }
@@ -82,7 +86,7 @@ impl TableStruct {
         if self.records.is_empty() {
             return;
         }
-        if self.selected_column_index >= self.headers.len().saturating_sub(1) {
+        if self.selected_column_index >= self.selectable_column_range {
             return;
         }
         self.selected_column_index += 1;
@@ -116,18 +120,22 @@ impl TableStruct {
         }
     }
 
-    pub async fn reset_default_records(&mut self, table_name: &String, mysql_client: &MySqlClient) {
-        let record_rows = mysql_client.get_record_list(table_name).await;
-        let (headers, records) = parse_sql_records(record_rows);
-
-        let selectable_column_range = headers.clone().len() - 1;
+    pub async fn reset_default_records(
+        &mut self,
+        table_name: String,
+        headers: Vec<String>,
+        records: Vec<Vec<String>>,
+    ) {
+        let selectable_column_range = headers.len().saturating_sub(1);
+        let selectable_row_range = records.len().saturating_sub(1);
         let mut default_state = TableState::default();
         default_state.select(Some(0));
 
-        self.name = table_name.to_string();
+        self.name = table_name;
         self.headers = headers;
         self.records = records;
         self.selectable_column_range = selectable_column_range;
+        self.selectable_row_range = selectable_row_range;
         self.selected_column_index = 0;
         self.row_list_state = default_state;
         self.visible_start_column_index = 0;

@@ -4,7 +4,6 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dotenv::dotenv;
-use sqlx::{mysql::MySqlRow, Row};
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -81,7 +80,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 KeyCode::Enter => {
                     if let Some(selected) = table_list_state.selected() {
-                        table_struct.reset_default_records(&tables[selected], &mysql_client).await;
+                        let selected_table_name = &tables[selected];
+                        let record_rows = mysql_client.get_record_list(selected_table_name).await;
+                        let (headers, records) = db::parse_sql_records(record_rows);
+                        table_struct
+                            .reset_default_records(
+                                selected_table_name.to_string(),
+                                headers,
+                                records,
+                            )
+                            .await;
                     }
                 }
                 _ => {}
