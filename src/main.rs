@@ -12,7 +12,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Cell, List, ListItem, Row as WdgRow, Table},
+    widgets::{Block, Borders, Cell, List, ListItem, ListState, Row as WdgRow, Table},
     Frame, Terminal,
 };
 
@@ -27,24 +27,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    let mut table_list_state = ListState::default();
+    table_list_state.select(Some(0));
+
     // Set config
     dotenv().ok();
 
-    let table_name = &env::var("TABLE_NAME").unwrap();
-
     let mysql_client = db::MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
 
-    let table_list = mysql_client
+    let table_rows = mysql_client
         .get_table_list(&env::var("DB_NAME").unwrap())
         .await;
+    let tables = db::parse_sql_tables(table_rows);
+    let default_table_name = &tables[0];
 
-    let record_rows = mysql_client.get_record_list(table_name).await;
-
+    let record_rows = mysql_client.get_record_list(default_table_name).await;
     let (headers, records) = db::parse_sql_records(record_rows);
-    let mut table_struct = db::TableStruct::new(table_name.to_string(), headers, records);
+    let mut table_struct = db::TableStruct::new(default_table_name.to_string(), headers, records);
 
     loop {
-        terminal.draw(|f| render_layout(f, &table_list, &mut table_struct))?;
+        terminal.draw(|f| render_layout(f, &tables, &mut table_struct, &mut table_list_state))?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -52,6 +54,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     disable_raw_mode()?;
                     terminal.show_cursor()?;
                     break;
+                }
+                KeyCode::Char('a') => {
+                    if let Some(selected) = table_list_state.selected() {
+                        if selected != 0 {
+                            table_list_state.select(Some(selected - 1));
+                        };
+                    }
+                }
+                KeyCode::Char('b') => {
+                    if let Some(selected) = table_list_state.selected() {
+                        table_list_state.select(Some(selected + 1));
+                    }
                 }
                 KeyCode::Up => {
                     table_struct.move_up();
@@ -66,7 +80,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     table_struct.move_left();
                 }
                 KeyCode::Enter => {
-                    break;
+                    if let Some(selected) = table_list_state.selected() {
+                        table_struct.reset_default_records(&tables[selected], &mysql_client).await;
+                    }
                 }
                 _ => {}
             }
@@ -84,8 +100,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_layout<B: Backend>(
     f: &mut Frame<'_, B>,
-    table_list: &Vec<MySqlRow>,
+    tables: &Vec<String>,
     table_struct: &mut db::TableStruct,
+    table_list_state: &mut ListState,
 ) {
     let size = f.size();
 
@@ -93,17 +110,17 @@ fn render_layout<B: Backend>(
     let block_2_1 = Block::default().title("Tables").borders(Borders::ALL);
     let block_2_2 = Block::default().title("Records").borders(Borders::ALL);
 
-    let tables: Vec<_> = table_list
+    let table_names: Vec<_> = tables
         .iter()
-        .map(|table| {
+        .map(|table_name| {
             ListItem::new(Spans::from(vec![Span::styled(
-                table.get::<String, _>("Name"),
+                table_name,
                 Style::default(),
             )]))
         })
         .collect();
 
-    let table_list = List::new(tables).block(block_2_1).highlight_style(
+    let table_list = List::new(table_names).block(block_2_1).highlight_style(
         Style::default()
             .bg(Color::Yellow)
             .fg(Color::Black)
@@ -180,6 +197,6 @@ fn render_layout<B: Backend>(
         .split(chunks_1[1]);
 
     f.render_widget(block_1, chunks_1[0]);
-    f.render_widget(table_list, chunks_2[0]);
+    f.render_stateful_widget(table_list, chunks_2[0], table_list_state);
     f.render_stateful_widget(record_list, chunks_2[1], &mut table_struct.row_list_state);
 }

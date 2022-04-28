@@ -1,3 +1,5 @@
+use std::env;
+
 use sqlx::{mysql::MySqlRow, Column, MySql, MySqlPool, Pool, Row};
 use tui::widgets::TableState;
 
@@ -113,6 +115,32 @@ impl TableStruct {
             self.scroll_left();
         }
     }
+
+    pub async fn reset_default_records(&mut self, table_name: &String, mysql_client: &MySqlClient) {
+        let record_rows = mysql_client.get_record_list(table_name).await;
+        let (headers, records) = parse_sql_records(record_rows);
+
+        let selectable_column_range = headers.clone().len() - 1;
+        let mut default_state = TableState::default();
+        default_state.select(Some(0));
+
+        self.name = table_name.to_string();
+        self.headers = headers;
+        self.records = records;
+        self.selectable_column_range = selectable_column_range;
+        self.selected_column_index = 0;
+        self.row_list_state = default_state;
+        self.visible_start_column_index = 0;
+        self.visible_end_column_index = 9;
+    }
+}
+
+pub fn parse_sql_tables(rows: Vec<MySqlRow>) -> Vec<String> {
+    let tables: Vec<String> = rows
+        .iter()
+        .map(|row| row.get::<String, _>("Name"))
+        .collect();
+    return tables;
 }
 
 pub fn parse_sql_records(table_rows: Vec<MySqlRow>) -> (Vec<String>, Vec<Vec<String>>) {
