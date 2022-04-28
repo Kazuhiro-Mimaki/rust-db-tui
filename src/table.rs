@@ -1,37 +1,4 @@
-use sqlx::{mysql::MySqlRow, Column, MySql, MySqlPool, Pool, Row};
 use tui::widgets::TableState;
-
-use crate::utils;
-
-pub struct MySqlClient {
-    pub pool: Pool<MySql>,
-}
-
-impl MySqlClient {
-    pub async fn new(db_url: &str) -> Self {
-        Self {
-            pool: MySqlPool::connect(db_url).await.unwrap(),
-        }
-    }
-
-    pub async fn get_table_list(&self, db_name: &str) -> Vec<MySqlRow> {
-        let get_tables_query = format!("{} {}", "SHOW TABLE STATUS FROM", db_name);
-        let table_list = sqlx::query(&get_tables_query.as_str())
-            .fetch_all(&self.pool)
-            .await
-            .unwrap();
-        return table_list;
-    }
-
-    pub async fn get_record_list(&self, table_name: &str) -> Vec<MySqlRow> {
-        let get_records_query = format!("{} {}", "SELECT * FROM", table_name);
-        let record_list = sqlx::query(&get_records_query.as_str())
-            .fetch_all(&self.pool)
-            .await
-            .unwrap();
-        return record_list;
-    }
-}
 
 pub struct TableStruct {
     pub name: String,
@@ -141,37 +108,4 @@ impl TableStruct {
         self.visible_start_column_index = 0;
         self.visible_end_column_index = 9;
     }
-}
-
-pub fn parse_sql_tables(rows: Vec<MySqlRow>) -> Vec<String> {
-    let tables: Vec<String> = rows
-        .iter()
-        .map(|row| row.get::<String, _>("Name"))
-        .collect();
-    return tables;
-}
-
-pub fn parse_sql_records(table_rows: Vec<MySqlRow>) -> (Vec<String>, Vec<Vec<String>>) {
-    let mut headers = vec![];
-    let mut records = vec![];
-
-    for table_row in table_rows.iter() {
-        headers = table_row
-            .columns()
-            .iter()
-            .map(|column| column.name().to_string())
-            .collect();
-
-        let mut record = vec![];
-        for column in table_row.columns() {
-            let column_name = column.name();
-            record.push(utils::convert_column_value_to_string(
-                &table_row,
-                column_name,
-            ));
-        }
-        records.push(record);
-    }
-
-    return (headers, records);
 }
