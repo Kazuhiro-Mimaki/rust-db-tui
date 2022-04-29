@@ -1137,6 +1137,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tui",
+ "unicode-width",
  "usize_cast",
 ]
 
