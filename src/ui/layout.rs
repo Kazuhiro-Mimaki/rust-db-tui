@@ -1,10 +1,10 @@
 use tui::layout::{Constraint, Direction, Layout, Rect};
 
-pub fn make_layout(size: Rect) -> (Vec<Rect>, Vec<Rect>) {
+pub fn make_layout(size: Rect) -> (Vec<Rect>, Vec<Rect>, Vec<Rect>) {
     let chunks_1 = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([Constraint::Percentage(10), Constraint::Percentage(90)].as_ref())
+        .constraints([Constraint::Length(4), Constraint::Min(0)].as_ref())
         .split(size);
 
     let chunks_2 = Layout::default()
@@ -12,5 +12,10 @@ pub fn make_layout(size: Rect) -> (Vec<Rect>, Vec<Rect>) {
         .constraints([Constraint::Percentage(15), Constraint::Length(85)].as_ref())
         .split(chunks_1[1]);
 
-    return (chunks_1, chunks_2);
+    let chunks_3 = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+        .split(chunks_2[1]);
+
+    return (chunks_1, chunks_2, chunks_3);
 }

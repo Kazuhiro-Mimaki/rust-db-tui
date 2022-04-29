@@ -30,7 +30,6 @@ pub fn render_table_records_wdg<B: Backend>(
             .iter()
             .enumerate()
             .map(|(column_idx, c)| {
-                // このcolumn_idxに入るのは0~9
                 Cell::from(c.to_string()).style(
                     if column_idx == table.selected_column_index - table.visible_start_column_index
                         && Some(row_index) == table.row_list_state.selected()

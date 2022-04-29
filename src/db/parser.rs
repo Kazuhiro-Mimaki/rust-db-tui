@@ -11,7 +11,7 @@ pub fn parse_sql_tables(rows: Vec<MySqlRow>) -> Vec<String> {
     return tables;
 }
 
-pub fn parse_sql_records(table_rows: Vec<MySqlRow>) -> (Vec<String>, Vec<Vec<String>>) {
+pub fn parse_sql_table_rows(table_rows: Vec<MySqlRow>) -> (Vec<String>, Vec<Vec<String>>) {
     let mut headers = vec![];
     let mut records = vec![];
 

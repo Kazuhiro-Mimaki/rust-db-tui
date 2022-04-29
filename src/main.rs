@@ -11,6 +11,7 @@ use tui::{
     widgets::ListState,
     Frame, Terminal,
 };
+use ui::tab;
 
 mod db;
 mod table;
@@ -39,12 +40,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let default_table_name = &tables[0];
 
     let (headers, records) = mysql_client.get_record_list(default_table_name).await;
-
     let mut table_struct =
         table::TableStruct::new(default_table_name.to_string(), headers, records);
 
+    let (column_headers, column_items) = mysql_client.get_table_columns(default_table_name).await;
+    let mut column_table =
+        table::TableStruct::new(default_table_name.to_string(), column_headers, column_items);
+
+    let mut tab_struct = ui::tab::TabStruct::new();
+
     loop {
-        terminal.draw(|f| render_layout(f, &tables, &mut table_struct, &mut table_list_state))?;
+        terminal.draw(|f| {
+            render_layout(
+                f,
+                &tables,
+                &mut tab_struct,
+                &mut table_struct,
+                &mut column_table,
+                &mut table_list_state,
+            )
+        })?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -62,22 +77,91 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 KeyCode::Char('b') => {
                     if let Some(selected) = table_list_state.selected() {
-                        table_list_state.select(Some(selected + 1));
+                        if selected < tables.len().saturating_sub(1) {
+                            table_list_state.select(Some(selected + 1));
+                        }
+                    }
+                }
+                KeyCode::Char('0') => {
+                    tab_struct.index = 0;
+                    if let Some(selected) = table_list_state.selected() {
+                        let selected_table_name = &tables[selected];
+                        if selected_table_name.to_string() != table_struct.name {
+                            let (headers, records) =
+                                mysql_client.get_record_list(selected_table_name).await;
+                            table_struct
+                                .reset_default_records(
+                                    selected_table_name.to_string(),
+                                    headers,
+                                    records,
+                                )
+                                .await;
+                        }
+                    }
+                }
+                KeyCode::Char('1') => {
+                    tab_struct.index = 1;
+                    if let Some(selected) = table_list_state.selected() {
+                        let selected_table_name = &tables[selected];
+                        if selected_table_name.to_string() != column_table.name {
+                            let (headers, records) =
+                                mysql_client.get_table_columns(selected_table_name).await;
+                            column_table
+                                .reset_default_records(
+                                    selected_table_name.to_string(),
+                                    headers,
+                                    records,
+                                )
+                                .await;
+                        }
                     }
                 }
                 KeyCode::Up => {
-                    table_struct.move_up();
+                    match tab_struct.index {
+                        0 => {
+                            table_struct.move_up();
+                        }
+                        1 => {
+                            column_table.move_up();
+                        }
+                        _ => unreachable!(),
+                    };
                 }
                 KeyCode::Down => {
-                    table_struct.move_down();
+                    match tab_struct.index {
+                        0 => {
+                            table_struct.move_down();
+                        }
+                        1 => {
+                            column_table.move_down();
+                        }
+                        _ => unreachable!(),
+                    };
                 }
                 KeyCode::Right => {
-                    table_struct.move_right();
+                    match tab_struct.index {
+                        0 => {
+                            table_struct.move_right();
+                        }
+                        1 => {
+                            column_table.move_right();
+                        }
+                        _ => unreachable!(),
+                    };
                 }
                 KeyCode::Left => {
-                    table_struct.move_left();
+                    match tab_struct.index {
+                        0 => {
+                            table_struct.move_left();
+                        }
+                        1 => {
+                            column_table.move_left();
+                        }
+                        _ => unreachable!(),
+                    };
                 }
                 KeyCode::Enter => {
+                    tab_struct.index = 0;
                     if let Some(selected) = table_list_state.selected() {
                         let selected_table_name = &tables[selected];
                         if selected_table_name.to_string() != table_struct.name {
@@ -110,16 +194,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 fn render_layout<B: Backend>(
     f: &mut Frame<'_, B>,
     tables: &Vec<String>,
+    tab_struct: &mut tab::TabStruct,
     table_struct: &mut table::TableStruct,
+    column_table: &mut table::TableStruct,
     table_list_state: &mut ListState,
 ) {
     let size = f.size();
 
     table_struct.update_visible_range();
 
-    let (chunks_1, chunks_2) = ui::layout::make_layout(size);
+    let (chunks_1, chunks_2, chunks_3) = ui::layout::make_layout(size);
 
     ui::input_query::render_input_query_wdg(f, chunks_1[0]);
     ui::tables::render_table_list_wdg(f, chunks_2[0], tables, table_list_state);
-    ui::records::render_table_records_wdg(f, chunks_2[1], table_struct);
+    ui::tab::render_tabs_wdg(f, chunks_3[0], tab_struct);
+    ui::tab::render_table_by_tab_wdg(f, chunks_3[1], tab_struct, table_struct, column_table);
 }
