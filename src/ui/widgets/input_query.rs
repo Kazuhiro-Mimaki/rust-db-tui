@@ -40,3 +40,12 @@ pub fn render_sql_input_wdg<B: Backend>(f: &mut Frame<'_, B>, area: Rect, app: &
         }
     }
 }
+
+pub fn render_sql_output_wdg<B: Backend>(f: &mut Frame<'_, B>, area: Rect) {
+    let input_block = Block::default()
+        .borders(Borders::ALL)
+        .title("SQL output")
+        .style(Style::default());
+
+    f.render_widget(input_block, area);
+}
