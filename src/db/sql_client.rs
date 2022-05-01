@@ -1,5 +1,7 @@
 use sqlx::{MySql, MySqlPool, Pool};
 
+use crate::App;
+
 use super::parser::{parse_sql_table_rows, parse_sql_tables};
 
 pub struct MySqlClient {
@@ -41,5 +43,15 @@ impl MySqlClient {
             .unwrap();
 
         return parse_sql_table_rows(record_rows);
+    }
+
+    pub async fn execute_input_query(&self, app: &mut App) {
+        let query = format!("{}", app.input);
+        let query_result = sqlx::query(&query.as_str())
+            .execute(&self.pool)
+            .await
+            .unwrap();
+
+        app.output = query_result;
     }
 }

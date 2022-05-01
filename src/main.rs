@@ -4,6 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dotenv::dotenv;
+use sqlx::mysql::MySqlQueryResult;
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -26,6 +27,7 @@ enum InputMode {
 pub struct App {
     input: String,
     input_mode: InputMode,
+    output: MySqlQueryResult,
 }
 
 impl App {
@@ -33,6 +35,7 @@ impl App {
         Self {
             input: String::new(),
             input_mode: InputMode::Normal,
+            output: MySqlQueryResult::default(),
         }
     }
 }
@@ -207,8 +210,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        // app.messages.push(app.input.drain(..).collect());
-                        break;
+                        mysql_client.execute_input_query(&mut app).await;
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
@@ -267,8 +269,7 @@ fn render_layout<B: Backend>(
 
             ui::widgets::tables::render_table_list_wdg(f, chunks_1[0], tables, table_list_state);
             ui::widgets::input_query::render_sql_input_wdg(f, chunks_2[0], app);
-            ui::widgets::input_query::render_sql_output_wdg(f, chunks_2[1]);
+            ui::widgets::input_query::render_sql_output_wdg(f, chunks_2[1], app);
         }
-        _ => {}
     }
 }
