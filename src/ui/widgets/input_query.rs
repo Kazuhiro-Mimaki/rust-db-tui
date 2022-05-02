@@ -47,6 +47,13 @@ pub fn render_sql_input_wdg<B: Backend>(f: &mut Frame<'_, B>, area: Rect, app: &
 pub fn render_sql_output_wdg<B: Backend>(f: &mut Frame<'_, B>, area: Rect, app: &mut App) {
     let mut text = vec![Spans::from("")];
 
+    if app.error != String::new() {
+        text = vec![
+            Spans::from(Span::from("Fail to execute")),
+            Spans::from(Span::from(app.error.to_string())),
+        ];
+    }
+
     if app.output.rows_affected() != 0 && app.output.last_insert_id() != 0 {
         text = vec![
             Spans::from(Span::from("Success to execute")),

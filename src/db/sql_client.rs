@@ -1,4 +1,4 @@
-use sqlx::{MySql, MySqlPool, Pool};
+use sqlx::{mysql::MySqlQueryResult, MySql, MySqlPool, Pool};
 
 use crate::App;
 
@@ -45,13 +45,14 @@ impl MySqlClient {
         return parse_sql_table_rows(record_rows);
     }
 
-    pub async fn execute_input_query(&self, app: &mut App) {
+    pub async fn execute_input_query(
+        &self,
+        app: &mut App,
+    ) -> Result<MySqlQueryResult, sqlx::Error> {
         let query = format!("{}", app.input);
-        let query_result = sqlx::query(&query.as_str())
-            .execute(&self.pool)
-            .await
-            .unwrap();
-
-        app.output = query_result;
+        match sqlx::query(&query.as_str()).execute(&self.pool).await {
+            Ok(result) => return Ok(result),
+            Err(e) => return Err(e),
+        };
     }
 }

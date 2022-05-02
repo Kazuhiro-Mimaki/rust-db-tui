@@ -28,6 +28,7 @@ pub struct App {
     input: String,
     input_mode: InputMode,
     output: MySqlQueryResult,
+    error: String,
 }
 
 impl App {
@@ -36,6 +37,7 @@ impl App {
             input: String::new(),
             input_mode: InputMode::Normal,
             output: MySqlQueryResult::default(),
+            error: String::new(),
         }
     }
 }
@@ -210,7 +212,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        mysql_client.execute_input_query(&mut app).await;
+                        let res = mysql_client.execute_input_query(&mut app).await;
+                        match res {
+                            Ok(result) => app.output = result,
+                            Err(e) => app.error = e.to_string(),
+                        }
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
