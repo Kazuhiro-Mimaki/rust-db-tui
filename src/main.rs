@@ -58,9 +58,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let mysql_client = db::sql_client::MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
 
-    let tables = mysql_client
-        .get_table_list(&env::var("DB_NAME").unwrap())
-        .await;
+    let databases = mysql_client.get_db_list().await;
+
+    let tables = mysql_client.get_table_list(&databases[0]).await;
     let default_table_name = &tables[0];
 
     let (headers, records) = mysql_client.get_record_list(default_table_name).await;

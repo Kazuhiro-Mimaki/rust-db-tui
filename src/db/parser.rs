@@ -3,6 +3,11 @@ use sqlx::{Column, Row};
 
 use crate::utils;
 
+pub fn parse_sql_db(rows: Vec<MySqlRow>) -> Vec<String> {
+    let tables: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
+    return tables;
+}
+
 pub fn parse_sql_tables(rows: Vec<MySqlRow>) -> Vec<String> {
     let tables: Vec<String> = rows
         .iter()

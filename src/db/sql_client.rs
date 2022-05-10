@@ -2,7 +2,7 @@ use sqlx::{mysql::MySqlQueryResult, MySql, MySqlPool, Pool};
 
 use crate::App;
 
-use super::parser::{parse_sql_table_rows, parse_sql_tables};
+use super::parser::{parse_sql_db, parse_sql_table_rows, parse_sql_tables};
 
 pub struct MySqlClient {
     pub pool: Pool<MySql>,
@@ -15,7 +15,17 @@ impl MySqlClient {
         }
     }
 
-    pub async fn get_table_list(&self, db_name: &str) -> Vec<String> {
+    pub async fn get_db_list(&self) -> Vec<String> {
+        let get_db_query = format!("{}", "SHOW DATABASES");
+        let db_rows = sqlx::query(&get_db_query.as_str())
+            .fetch_all(&self.pool)
+            .await
+            .unwrap();
+
+        return parse_sql_db(db_rows);
+    }
+
+    pub async fn get_table_list(&self, db_name: &String) -> Vec<String> {
         let get_tables_query = format!("{} {}", "SHOW TABLE STATUS FROM", db_name);
         let table_rows = sqlx::query(&get_tables_query.as_str())
             .fetch_all(&self.pool)
