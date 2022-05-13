@@ -259,7 +259,8 @@ fn render_layout<B: Backend>(
         InputMode::Normal => {
             let (chunks_1, chunks_2) = ui::layout::make_normal_layout(size);
 
-            ui::widgets::tables::render_table_list_wdg(f, chunks_1[0], tables, table_list_state);
+            ui::widgets::database::render_database_wdg(f, chunks_1[0]);
+            ui::widgets::tables::render_table_list_wdg(f, chunks_1[1], tables, table_list_state);
             ui::widgets::input_query::render_sql_input_wdg(f, chunks_2[0], app);
             ui::widgets::tab::render_tabs_wdg(f, chunks_2[1], tab_struct);
             ui::widgets::tab::render_table_by_tab_wdg(
@@ -273,7 +274,8 @@ fn render_layout<B: Backend>(
         InputMode::Editing => {
             let (chunks_1, chunks_2) = ui::layout::make_edit_layout(size);
 
-            ui::widgets::tables::render_table_list_wdg(f, chunks_1[0], tables, table_list_state);
+            ui::widgets::database::render_database_wdg(f, chunks_1[0]);
+            ui::widgets::tables::render_table_list_wdg(f, chunks_1[1], tables, table_list_state);
             ui::widgets::input_query::render_sql_input_wdg(f, chunks_2[0], app);
             ui::widgets::input_query::render_sql_output_wdg(f, chunks_2[1], app);
         }
