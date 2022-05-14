@@ -29,6 +29,7 @@ pub struct App {
     input_mode: InputMode,
     output: MySqlQueryResult,
     error: String,
+    show_popup: bool,
 }
 
 impl App {
@@ -38,6 +39,7 @@ impl App {
             input_mode: InputMode::Normal,
             output: MySqlQueryResult::default(),
             error: String::new(),
+            show_popup: false,
         }
     }
 }
@@ -112,6 +114,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     KeyCode::Char('e') => {
                         app.input_mode = InputMode::Editing;
+                    }
+                    KeyCode::Char('p') => {
+                        app.show_popup = !app.show_popup;
                     }
                     KeyCode::Char('0') => {
                         tab_struct.index = 0;
@@ -257,6 +262,9 @@ fn render_layout<B: Backend>(
 
     match app.input_mode {
         InputMode::Normal => {
+            if app.show_popup {
+                ui::widgets::popup::render_popup_wdg(f, size, tables);
+            }
             let (chunks_1, chunks_2) = ui::layout::make_normal_layout(size);
 
             ui::widgets::database::render_database_wdg(f, chunks_1[0]);
