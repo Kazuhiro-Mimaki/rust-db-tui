@@ -3,19 +3,27 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use db::sql_client::MySqlClient;
 use dotenv::dotenv;
-use sqlx::mysql::MySqlQueryResult;
 use std::env;
 use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
-    widgets::ListState,
     Frame, Terminal,
 };
-use ui::widgets::tab;
+use ui::widgets::{
+    database::DatabaseWdg,
+    popup::PopupWdg,
+    sql_input::SqlInputWdg,
+    sql_output::SqlOutputWdg,
+    tab::{TabWdg, TableMode},
+    table_column::TableColumnWdg,
+    table_list::TableListWdg,
+    table_record::TableRecordWdg,
+};
+use unicode_width::UnicodeWidthStr;
 
 mod db;
-mod table;
 mod ui;
 mod utils;
 
@@ -25,21 +33,13 @@ enum InputMode {
 }
 
 pub struct App {
-    input: String,
     input_mode: InputMode,
-    output: MySqlQueryResult,
-    error: String,
-    show_popup: bool,
 }
 
 impl App {
     fn new() -> Self {
         Self {
-            input: String::new(),
             input_mode: InputMode::Normal,
-            output: MySqlQueryResult::default(),
-            error: String::new(),
-            show_popup: false,
         }
     }
 }
@@ -52,41 +52,50 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut table_list_state = ListState::default();
-    table_list_state.select(Some(0));
-
     // Set config
     dotenv().ok();
 
-    let mysql_client = db::sql_client::MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
+    let mysql_client = MySqlClient::new(&env::var("DATABASE_URL").unwrap()).await;
 
     let databases = mysql_client.get_db_list().await;
 
     let tables = mysql_client.get_table_list(&databases[0]).await;
     let default_table_name = &tables[0];
 
-    let (headers, records) = mysql_client.get_record_list(default_table_name).await;
-    let mut table_struct =
-        table::TableStruct::new(default_table_name.to_string(), headers, records);
+    let (headers, records) = mysql_client
+        .get_table_records(default_table_name.to_string())
+        .await;
 
-    let (column_headers, column_items) = mysql_client.get_table_columns(default_table_name).await;
-    let mut column_table =
-        table::TableStruct::new(default_table_name.to_string(), column_headers, column_items);
-
-    let mut tab_struct = ui::widgets::tab::TabStruct::new();
+    let (column_headers, column_items) = mysql_client
+        .get_table_columns(default_table_name.to_string())
+        .await;
 
     let mut app = App::new();
+
+    let database_widget = DatabaseWdg::new();
+    let mut table_list_widget = TableListWdg::new(&tables);
+    let mut table_record_widget =
+        TableRecordWdg::new(default_table_name.to_string(), headers, records);
+    let mut table_column_widget =
+        TableColumnWdg::new(default_table_name.to_string(), column_headers, column_items);
+    let mut sql_input_widget = SqlInputWdg::new();
+    let mut sql_output_widget = SqlOutputWdg::new();
+    let mut popup_widget = PopupWdg::new(&tables);
+    let mut tab_widget = TabWdg::new();
 
     loop {
         terminal.draw(|f| {
             render_layout(
                 f,
                 &mut app,
-                &tables,
-                &mut tab_struct,
-                &mut table_struct,
-                &mut column_table,
-                &mut table_list_state,
+                &database_widget,
+                &mut table_record_widget,
+                &mut table_column_widget,
+                &mut table_list_widget,
+                &mut sql_input_widget,
+                &mut sql_output_widget,
+                &mut popup_widget,
+                &mut tab_widget,
             )
         })?;
 
@@ -99,135 +108,122 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                     KeyCode::Char('a') => {
-                        if let Some(selected) = table_list_state.selected() {
-                            if selected != 0 {
-                                table_list_state.select(Some(selected - 1));
-                            };
-                        }
+                        table_list_widget.move_up();
                     }
                     KeyCode::Char('b') => {
-                        if let Some(selected) = table_list_state.selected() {
-                            if selected < tables.len().saturating_sub(1) {
-                                table_list_state.select(Some(selected + 1));
-                            }
-                        }
+                        table_list_widget.move_down();
                     }
                     KeyCode::Char('e') => {
                         app.input_mode = InputMode::Editing;
                     }
                     KeyCode::Char('p') => {
-                        app.show_popup = !app.show_popup;
+                        popup_widget.is_show = !popup_widget.is_show;
                     }
                     KeyCode::Char('0') => {
-                        tab_struct.index = 0;
-                        if let Some(selected) = table_list_state.selected() {
-                            let selected_table_name = &tables[selected];
-                            if selected_table_name.to_string() != table_struct.name {
-                                let (headers, records) =
-                                    mysql_client.get_record_list(selected_table_name).await;
-                                table_struct
-                                    .reset_default_records(
-                                        selected_table_name.to_string(),
-                                        headers,
-                                        records,
-                                    )
-                                    .await;
-                            }
+                        tab_widget.mode = TableMode::Records;
+                        table_list_widget.change_table();
+                        if !table_record_widget
+                            .is_current_table(table_list_widget.current_table.to_string())
+                        {
+                            let (headers, records) = mysql_client
+                                .get_table_records(table_list_widget.current_table.to_string())
+                                .await;
+                            table_record_widget.reset_default_records(
+                                table_list_widget.current_table.to_string(),
+                                headers,
+                                records,
+                            );
                         }
                     }
                     KeyCode::Char('1') => {
-                        tab_struct.index = 1;
-                        if let Some(selected) = table_list_state.selected() {
-                            let selected_table_name = &tables[selected];
-                            if selected_table_name.to_string() != column_table.name {
-                                let (headers, records) =
-                                    mysql_client.get_table_columns(selected_table_name).await;
-                                column_table
-                                    .reset_default_records(
-                                        selected_table_name.to_string(),
-                                        headers,
-                                        records,
-                                    )
-                                    .await;
-                            }
+                        tab_widget.mode = TableMode::Columns;
+                        table_list_widget.change_table();
+                        if !table_column_widget
+                            .is_current_table(table_list_widget.current_table.to_string())
+                        {
+                            let (headers, records) = mysql_client
+                                .get_table_columns(table_list_widget.current_table.to_string())
+                                .await;
+                            table_column_widget.reset_default_records(
+                                table_list_widget.current_table.to_string(),
+                                headers,
+                                records,
+                            );
                         }
                     }
                     KeyCode::Up => {
-                        match tab_struct.index {
-                            0 => {
-                                table_struct.move_up();
+                        match tab_widget.mode {
+                            TableMode::Records => {
+                                table_record_widget.move_up();
                             }
-                            1 => {
-                                column_table.move_up();
+                            TableMode::Columns => {
+                                table_column_widget.move_up();
                             }
-                            _ => unreachable!(),
                         };
                     }
                     KeyCode::Down => {
-                        match tab_struct.index {
-                            0 => {
-                                table_struct.move_down();
+                        match tab_widget.mode {
+                            TableMode::Records => {
+                                table_record_widget.move_down();
                             }
-                            1 => {
-                                column_table.move_down();
+                            TableMode::Columns => {
+                                table_column_widget.move_down();
                             }
-                            _ => unreachable!(),
                         };
                     }
                     KeyCode::Right => {
-                        match tab_struct.index {
-                            0 => {
-                                table_struct.move_right();
+                        match tab_widget.mode {
+                            TableMode::Records => {
+                                table_record_widget.move_right();
                             }
-                            1 => {
-                                column_table.move_right();
+                            TableMode::Columns => {
+                                table_column_widget.move_right();
                             }
-                            _ => unreachable!(),
                         };
                     }
                     KeyCode::Left => {
-                        match tab_struct.index {
-                            0 => {
-                                table_struct.move_left();
+                        match tab_widget.mode {
+                            TableMode::Records => {
+                                table_record_widget.move_left();
                             }
-                            1 => {
-                                column_table.move_left();
+                            TableMode::Columns => {
+                                table_column_widget.move_left();
                             }
-                            _ => unreachable!(),
                         };
                     }
                     KeyCode::Enter => {
-                        tab_struct.index = 0;
-                        if let Some(selected) = table_list_state.selected() {
-                            let selected_table_name = &tables[selected];
-                            if selected_table_name.to_string() != table_struct.name {
-                                let (headers, records) =
-                                    mysql_client.get_record_list(selected_table_name).await;
-                                table_struct
-                                    .reset_default_records(
-                                        selected_table_name.to_string(),
-                                        headers,
-                                        records,
-                                    )
-                                    .await;
-                            };
+                        tab_widget.mode = TableMode::Records;
+                        table_list_widget.change_table();
+                        if !table_record_widget
+                            .is_current_table(table_list_widget.current_table.to_string())
+                        {
+                            let (headers, records) = mysql_client
+                                .get_table_records(table_list_widget.current_table.to_string())
+                                .await;
+                            table_record_widget.reset_default_records(
+                                table_list_widget.current_table.to_string(),
+                                headers,
+                                records,
+                            );
                         }
                     }
                     _ => {}
                 },
                 InputMode::Editing => match key.code {
                     KeyCode::Enter => {
-                        let res = mysql_client.execute_input_query(&mut app).await;
+                        let res = mysql_client
+                            .execute_input_query(sql_input_widget.input.clone())
+                            .await;
                         match res {
-                            Ok(result) => app.output = result,
-                            Err(e) => app.error = e.to_string(),
+                            Ok(res) => sql_output_widget.set_success_msg(res),
+                            Err(e) => sql_output_widget.set_error_msg(e.to_string()),
                         }
                     }
                     KeyCode::Char(c) => {
-                        app.input.push(c);
+                        sql_input_widget.input.push(c);
                     }
                     KeyCode::Backspace => {
-                        app.input.pop();
+                        sql_input_widget.input.pop();
                     }
                     KeyCode::Esc => {
                         app.input_mode = InputMode::Normal;
@@ -250,42 +246,82 @@ async fn main() -> Result<(), Box<dyn Error>> {
 fn render_layout<B: Backend>(
     f: &mut Frame<'_, B>,
     app: &mut App,
-    tables: &Vec<String>,
-    tab_struct: &mut tab::TabStruct,
-    table_struct: &mut table::TableStruct,
-    column_table: &mut table::TableStruct,
-    table_list_state: &mut ListState,
+    database_widget: &DatabaseWdg,
+    table_record_widget: &mut TableRecordWdg,
+    table_column_widget: &mut TableColumnWdg,
+    table_list_widget: &mut TableListWdg,
+    sql_input_widget: &mut SqlInputWdg,
+    sql_output_widget: &mut SqlOutputWdg,
+    popup_widget: &mut PopupWdg,
+    tab_widget: &mut TabWdg,
 ) {
     let size = f.size();
 
-    table_struct.update_visible_range();
+    table_record_widget.update_visible_range();
 
     match app.input_mode {
         InputMode::Normal => {
-            if app.show_popup {
-                ui::widgets::popup::render_popup_wdg(f, size, tables);
+            if popup_widget.is_show {
+                // popup widget
+                f.render_widget(popup_widget.widget(size), popup_widget.area);
             }
             let (chunks_1, chunks_2) = ui::layout::make_normal_layout(size);
 
-            ui::widgets::database::render_database_wdg(f, chunks_1[0]);
-            ui::widgets::tables::render_table_list_wdg(f, chunks_1[1], tables, table_list_state);
-            ui::widgets::input_query::render_sql_input_wdg(f, chunks_2[0], app);
-            ui::widgets::tab::render_tabs_wdg(f, chunks_2[1], tab_struct);
-            ui::widgets::tab::render_table_by_tab_wdg(
-                f,
-                chunks_2[2],
-                tab_struct,
-                table_struct,
-                column_table,
+            // database widget
+            f.render_widget(database_widget.widget(), chunks_1[0]);
+
+            // table list widget
+            f.render_stateful_widget(
+                table_list_widget.widget(),
+                chunks_1[1],
+                &mut table_list_widget.table_select_state,
             );
+
+            // sql input widget
+            f.render_widget(sql_input_widget.widget(), chunks_2[0]);
+
+            // tab widget
+            f.render_widget(tab_widget.widget(), chunks_2[1]);
+
+            match tab_widget.mode {
+                TableMode::Records => {
+                    f.render_stateful_widget(
+                        table_record_widget.widget(),
+                        chunks_2[2],
+                        &mut table_record_widget.select_row_list_state,
+                    );
+                }
+                TableMode::Columns => {
+                    f.render_stateful_widget(
+                        table_column_widget.widget(),
+                        chunks_2[2],
+                        &mut table_column_widget.select_row_list_state,
+                    );
+                }
+            };
         }
         InputMode::Editing => {
             let (chunks_1, chunks_2) = ui::layout::make_edit_layout(size);
 
-            ui::widgets::database::render_database_wdg(f, chunks_1[0]);
-            ui::widgets::tables::render_table_list_wdg(f, chunks_1[1], tables, table_list_state);
-            ui::widgets::input_query::render_sql_input_wdg(f, chunks_2[0], app);
-            ui::widgets::input_query::render_sql_output_wdg(f, chunks_2[1], app);
+            f.render_widget(database_widget.widget(), chunks_1[0]);
+
+            // table list widget
+            f.render_stateful_widget(
+                table_list_widget.widget(),
+                chunks_1[1],
+                &mut table_list_widget.table_select_state,
+            );
+
+            // sql input widget
+            f.render_widget(sql_input_widget.widget(), chunks_2[0]);
+            f.set_cursor(
+                // Put cursor past the end of the input text
+                chunks_2[0].x + sql_input_widget.input.width() as u16 + 1,
+                // Move one line down, from the border to the input line
+                chunks_2[0].y + 1,
+            );
+
+            f.render_widget(sql_output_widget.widget(), chunks_2[1]);
         }
     }
 }

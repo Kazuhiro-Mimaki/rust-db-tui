@@ -3,24 +3,25 @@ use tui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-pub struct DatabaseWdg<'a> {
+pub struct SqlInputWdg<'a> {
     title: &'a str,
-    content: &'a str,
+    pub input: String,
 }
 
-impl DatabaseWdg<'_> {
+impl<'a> SqlInputWdg<'a> {
     pub fn new() -> Self {
         Self {
-            title: "DB",
-            content: "sample database",
+            title: "SQL [e: start editing] [esc: stop editing]",
+            input: String::new(),
         }
     }
 
     pub fn widget(&self) -> Paragraph<'static> {
         let block = Block::default()
+            .borders(Borders::ALL)
             .title(self.title.to_string())
-            .borders(Borders::ALL);
-        let widget = Paragraph::new(self.content.to_string())
+            .style(Style::default());
+        let widget = Paragraph::new(self.input.clone())
             .style(Style::default())
             .block(block);
         return widget;

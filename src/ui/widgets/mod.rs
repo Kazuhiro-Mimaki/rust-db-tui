@@ -1,6 +1,8 @@
 pub mod database;
-pub mod input_query;
 pub mod popup;
-pub mod records;
+pub mod sql_input;
+pub mod sql_output;
 pub mod tab;
-pub mod tables;
+pub mod table_column;
+pub mod table_record;
+pub mod table_list;
