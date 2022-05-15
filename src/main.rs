@@ -121,35 +121,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                     KeyCode::Char('0') => {
                         tab_widget.mode = TableMode::Records;
-                        table_list_widget.change_table();
-                        if !table_record_widget
-                            .is_current_table(table_list_widget.current_table.to_string())
-                        {
-                            let (headers, records) = mysql_client
-                                .get_table_records(table_list_widget.current_table.to_string())
-                                .await;
-                            table_record_widget.reset_default_records(
-                                table_list_widget.current_table.to_string(),
-                                headers,
-                                records,
-                            );
-                        }
                     }
                     KeyCode::Char('1') => {
                         tab_widget.mode = TableMode::Columns;
-                        table_list_widget.change_table();
-                        if !table_column_widget
-                            .is_current_table(table_list_widget.current_table.to_string())
-                        {
-                            let (headers, records) = mysql_client
-                                .get_table_columns(table_list_widget.current_table.to_string())
-                                .await;
-                            table_column_widget.reset_default_records(
-                                table_list_widget.current_table.to_string(),
-                                headers,
-                                records,
-                            );
-                        }
                     }
                     KeyCode::Up => {
                         match tab_widget.mode {
@@ -192,18 +166,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         };
                     }
                     KeyCode::Enter => {
-                        tab_widget.mode = TableMode::Records;
                         table_list_widget.change_table();
                         if !table_record_widget
                             .is_current_table(table_list_widget.current_table.to_string())
                         {
-                            let (headers, records) = mysql_client
+                            let (record_headers, record_fields) = mysql_client
                                 .get_table_records(table_list_widget.current_table.to_string())
                                 .await;
                             table_record_widget.reset_default_records(
                                 table_list_widget.current_table.to_string(),
-                                headers,
-                                records,
+                                record_headers,
+                                record_fields,
+                            );
+                            let (column_headers, column_fields) = mysql_client
+                                .get_table_columns(table_list_widget.current_table.to_string())
+                                .await;
+                            table_column_widget.reset_default_records(
+                                table_list_widget.current_table.to_string(),
+                                column_headers,
+                                column_fields,
                             );
                         }
                     }
