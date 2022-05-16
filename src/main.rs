@@ -11,15 +11,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     Frame, Terminal,
 };
-use ui::widgets::{
-    database::DatabaseWdg,
-    sql_input::SqlInputWdg,
-    sql_output::SqlOutputWdg,
-    tab::{TabWdg, TableMode},
-    table_column::TableColumnWdg,
-    table_list::TableListWdg,
-    table_record::TableRecordWdg,
-};
+use ui::widgets::{ctx::WidgetCtx, tab::TableMode};
 use unicode_width::UnicodeWidthStr;
 
 mod db;
@@ -81,31 +73,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await;
 
     let mut app = App::new();
-
-    let mut database_widget = DatabaseWdg::new(databases.clone());
-    let mut table_list_widget = TableListWdg::new(tables.clone());
-    let mut table_record_widget =
-        TableRecordWdg::new(default_table_name.to_string(), headers, records);
-    let mut table_column_widget =
-        TableColumnWdg::new(default_table_name.to_string(), column_headers, column_items);
-    let mut sql_input_widget = SqlInputWdg::new();
-    let mut sql_output_widget = SqlOutputWdg::new();
-    let mut tab_widget = TabWdg::new();
+    let mut widget_ctx = WidgetCtx::new(
+        databases,
+        tables,
+        headers,
+        records,
+        column_headers,
+        column_items,
+    );
 
     loop {
-        terminal.draw(|f| {
-            render_layout(
-                f,
-                &mut app,
-                &mut database_widget,
-                &mut table_record_widget,
-                &mut table_column_widget,
-                &mut table_list_widget,
-                &mut sql_input_widget,
-                &mut sql_output_widget,
-                &mut tab_widget,
-            )
-        })?;
+        terminal.draw(|f| render_layout(f, &mut app, &mut widget_ctx))?;
 
         if let Event::Key(key) = event::read()? {
             match app.widget_mode {
@@ -116,10 +94,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                     KeyCode::Char('a') => {
-                        table_list_widget.move_up();
+                        widget_ctx.table_list.move_up();
                     }
                     KeyCode::Char('b') => {
-                        table_list_widget.move_down();
+                        widget_ctx.table_list.move_down();
                     }
                     KeyCode::Char('e') => {
                         app.widget_mode = WidgetMode::EditSQL;
@@ -128,71 +106,72 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         app.widget_mode = WidgetMode::ChangeDB;
                     }
                     KeyCode::Char('0') => {
-                        tab_widget.mode = TableMode::Records;
+                        widget_ctx.tab.mode = TableMode::Records;
                     }
                     KeyCode::Char('1') => {
-                        tab_widget.mode = TableMode::Columns;
+                        widget_ctx.tab.mode = TableMode::Columns;
                     }
                     KeyCode::Up => {
-                        match tab_widget.mode {
+                        match widget_ctx.tab.mode {
                             TableMode::Records => {
-                                table_record_widget.move_up();
+                                widget_ctx.table_record.move_up();
                             }
                             TableMode::Columns => {
-                                table_column_widget.move_up();
+                                widget_ctx.table_column.move_up();
                             }
                         };
                     }
                     KeyCode::Down => {
-                        match tab_widget.mode {
+                        match widget_ctx.tab.mode {
                             TableMode::Records => {
-                                table_record_widget.move_down();
+                                widget_ctx.table_record.move_down();
                             }
                             TableMode::Columns => {
-                                table_column_widget.move_down();
+                                widget_ctx.table_column.move_down();
                             }
                         };
                     }
                     KeyCode::Right => {
-                        match tab_widget.mode {
+                        match widget_ctx.tab.mode {
                             TableMode::Records => {
-                                table_record_widget.move_right();
+                                widget_ctx.table_record.move_right();
                             }
                             TableMode::Columns => {
-                                table_column_widget.move_right();
+                                widget_ctx.table_column.move_right();
                             }
                         };
                     }
                     KeyCode::Left => {
-                        match tab_widget.mode {
+                        match widget_ctx.tab.mode {
                             TableMode::Records => {
-                                table_record_widget.move_left();
+                                widget_ctx.table_record.move_left();
                             }
                             TableMode::Columns => {
-                                table_column_widget.move_left();
+                                widget_ctx.table_column.move_left();
                             }
                         };
                     }
                     KeyCode::Enter => {
-                        table_list_widget.change_table();
-                        if !table_record_widget
-                            .is_current_table(table_list_widget.current_table.to_string())
+                        widget_ctx.table_list.change_table();
+                        if !widget_ctx
+                            .table_record
+                            .is_current_table(widget_ctx.table_list.current_table.to_string())
                         {
                             // reset table records
                             let (record_headers, record_fields) = mysql_client
-                                .get_table_records(table_list_widget.current_table.to_string())
+                                .get_table_records(widget_ctx.table_list.current_table.to_string())
                                 .await;
-                            table_record_widget.reset_default_records(
-                                table_list_widget.current_table.to_string(),
+                            widget_ctx.table_record.reset_default_records(
+                                widget_ctx.table_list.current_table.to_string(),
                                 record_headers,
                                 record_fields,
                             );
                             // reset table columns
                             let (column_headers, column_fields) = mysql_client
-                                .get_table_columns(table_list_widget.current_table.to_string())
+                                .get_table_columns(widget_ctx.table_list.current_table.to_string())
                                 .await;
-                            table_column_widget.reset_default_records(
-                                table_list_widget.current_table.to_string(),
+                            widget_ctx.table_column.reset_default_records(
+                                widget_ctx.table_list.current_table.to_string(),
                                 column_headers,
                                 column_fields,
                             );
@@ -202,28 +181,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 },
                 WidgetMode::ChangeDB => match key.code {
                     KeyCode::Enter => {
-                        database_widget.change_database();
+                        widget_ctx.database.change_database();
                         // change db
                         let new_db_url = format!(
                             "{}/{}",
                             &env::var("DATABASE_URL").unwrap(),
-                            database_widget.current_database.to_string()
+                            widget_ctx.database.current_database.to_string()
                         );
                         mysql_client.change_db(&new_db_url).await;
 
                         let new_tables = mysql_client
-                            .get_table_list(database_widget.current_database.to_string())
+                            .get_table_list(widget_ctx.database.current_database.to_string())
                             .await;
                         let new_table_name = &new_tables[0];
-                        table_list_widget.change_table();
-                        table_list_widget.change_tables(new_tables.clone());
+                        widget_ctx.table_list.change_table();
+                        widget_ctx.table_list.change_tables(new_tables.clone());
 
                         // reset table records
                         let (record_headers, record_fields) = mysql_client
                             .get_table_records(new_table_name.to_string())
                             .await;
-                        table_record_widget.reset_default_records(
-                            table_list_widget.current_table.to_string(),
+                        widget_ctx.table_record.reset_default_records(
+                            widget_ctx.table_list.current_table.to_string(),
                             record_headers,
                             record_fields,
                         );
@@ -232,18 +211,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         let (column_headers, column_fields) = mysql_client
                             .get_table_columns(new_table_name.to_string())
                             .await;
-                        table_column_widget.reset_default_records(
-                            table_list_widget.current_table.to_string(),
+                        widget_ctx.table_column.reset_default_records(
+                            widget_ctx.table_list.current_table.to_string(),
                             column_headers,
                             column_fields,
                         );
                         app.widget_mode = WidgetMode::Normal;
                     }
                     KeyCode::Up => {
-                        database_widget.move_up();
+                        widget_ctx.database.move_up();
                     }
                     KeyCode::Down => {
-                        database_widget.move_down();
+                        widget_ctx.database.move_down();
                     }
                     KeyCode::Char('c') => {
                         app.widget_mode = WidgetMode::Normal;
@@ -253,18 +232,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 WidgetMode::EditSQL => match key.code {
                     KeyCode::Enter => {
                         let res = mysql_client
-                            .execute_input_query(sql_input_widget.input.clone())
+                            .execute_input_query(widget_ctx.sql_input.input.clone())
                             .await;
                         match res {
-                            Ok(res) => sql_output_widget.set_success_msg(res),
-                            Err(e) => sql_output_widget.set_error_msg(e.to_string()),
+                            Ok(res) => widget_ctx.sql_output.set_success_msg(res),
+                            Err(e) => widget_ctx.sql_output.set_error_msg(e.to_string()),
                         }
                     }
                     KeyCode::Char(c) => {
-                        sql_input_widget.input.push(c);
+                        widget_ctx.sql_input.input.push(c);
                     }
                     KeyCode::Backspace => {
-                        sql_input_widget.input.pop();
+                        widget_ctx.sql_input.input.pop();
                     }
                     KeyCode::Esc => {
                         app.widget_mode = WidgetMode::Normal;
@@ -284,55 +263,45 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn render_layout<B: Backend>(
-    f: &mut Frame<'_, B>,
-    app: &mut App,
-    database_widget: &mut DatabaseWdg,
-    table_record_widget: &mut TableRecordWdg,
-    table_column_widget: &mut TableColumnWdg,
-    table_list_widget: &mut TableListWdg,
-    sql_input_widget: &mut SqlInputWdg,
-    sql_output_widget: &mut SqlOutputWdg,
-    tab_widget: &mut TabWdg,
-) {
+fn render_layout<B: Backend>(f: &mut Frame<'_, B>, app: &mut App, widget_ctx: &mut WidgetCtx) {
     let size = f.size();
 
-    table_record_widget.update_visible_range();
+    widget_ctx.table_record.update_visible_range();
 
     match app.widget_mode {
         WidgetMode::Normal => {
             let (chunks_1, chunks_2) = ui::layout::make_normal_layout(size);
 
             // database widget
-            f.render_widget(database_widget.current_database_widget(), chunks_1[0]);
+            f.render_widget(widget_ctx.database.current_database_widget(), chunks_1[0]);
 
             // table list widget
             f.render_stateful_widget(
-                table_list_widget.widget(),
+                widget_ctx.table_list.widget(),
                 chunks_1[1],
-                &mut table_list_widget.table_select_state,
+                &mut widget_ctx.table_list.table_select_state,
             );
             // sql input widget
-            f.render_widget(sql_input_widget.widget(), chunks_2[0]);
+            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
 
             // tab widget
-            f.render_widget(tab_widget.widget(), chunks_2[1]);
+            f.render_widget(widget_ctx.tab.widget(), chunks_2[1]);
 
-            match tab_widget.mode {
+            match widget_ctx.tab.mode {
                 TableMode::Records => {
                     f.render_stateful_widget(
                         // table record widget
-                        table_record_widget.widget(),
+                        widget_ctx.table_record.widget(),
                         chunks_2[2],
-                        &mut table_record_widget.select_row_list_state,
+                        &mut widget_ctx.table_record.select_row_list_state,
                     );
                 }
                 TableMode::Columns => {
                     f.render_stateful_widget(
                         // table column widget
-                        table_column_widget.widget(),
+                        widget_ctx.table_column.widget(),
                         chunks_2[2],
-                        &mut table_column_widget.select_row_list_state,
+                        &mut widget_ctx.table_column.select_row_list_state,
                     );
                 }
             };
@@ -342,32 +311,32 @@ fn render_layout<B: Backend>(
 
             // database widget
             f.render_stateful_widget(
-                database_widget.expand_db_list_widget(),
+                widget_ctx.database.expand_db_list_widget(),
                 chunks_1,
-                &mut database_widget.database_select_state,
+                &mut widget_ctx.database.database_select_state,
             );
 
             // sql input widget
-            f.render_widget(sql_input_widget.widget(), chunks_2[0]);
+            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
 
             // tab widget
-            f.render_widget(tab_widget.widget(), chunks_2[1]);
+            f.render_widget(widget_ctx.tab.widget(), chunks_2[1]);
 
-            match tab_widget.mode {
+            match widget_ctx.tab.mode {
                 TableMode::Records => {
                     // table record widget
                     f.render_stateful_widget(
-                        table_record_widget.widget(),
+                        widget_ctx.table_record.widget(),
                         chunks_2[2],
-                        &mut table_record_widget.select_row_list_state,
+                        &mut widget_ctx.table_record.select_row_list_state,
                     );
                 }
                 TableMode::Columns => {
                     // table column widget
                     f.render_stateful_widget(
-                        table_column_widget.widget(),
+                        widget_ctx.table_column.widget(),
                         chunks_2[2],
-                        &mut table_column_widget.select_row_list_state,
+                        &mut widget_ctx.table_column.select_row_list_state,
                     );
                 }
             };
@@ -376,26 +345,26 @@ fn render_layout<B: Backend>(
             let (chunks_1, chunks_2) = ui::layout::make_edit_sql_layout(size);
 
             // database widget
-            f.render_widget(database_widget.current_database_widget(), chunks_1[0]);
+            f.render_widget(widget_ctx.database.current_database_widget(), chunks_1[0]);
 
             // table list widget
             f.render_stateful_widget(
-                table_list_widget.widget(),
+                widget_ctx.table_list.widget(),
                 chunks_1[1],
-                &mut table_list_widget.table_select_state,
+                &mut widget_ctx.table_list.table_select_state,
             );
 
             // sql input widget
-            f.render_widget(sql_input_widget.widget(), chunks_2[0]);
+            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
             f.set_cursor(
                 // Put cursor past the end of the input text
-                chunks_2[0].x + sql_input_widget.input.width() as u16 + 1,
+                chunks_2[0].x + widget_ctx.sql_input.input.width() as u16 + 1,
                 // Move one line down, from the border to the input line
                 chunks_2[0].y + 1,
             );
 
             // sql output widget
-            f.render_widget(sql_output_widget.widget(), chunks_2[1]);
+            f.render_widget(widget_ctx.sql_output.widget(), chunks_2[1]);
         }
     }
 }
