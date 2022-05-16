@@ -38,7 +38,7 @@ impl<'a> TableColumnWdg<'a> {
         }
     }
 
-    pub fn widget(&self) -> Table<'static> {
+    pub fn widget(&self) -> Table<'a> {
         let block = Block::default()
             .title(self.title.to_string())
             .borders(Borders::ALL);
@@ -146,7 +146,7 @@ impl<'a> TableColumnWdg<'a> {
         self.visible_end_column_index = 9;
     }
 
-    pub fn is_current_table(&self, selected_table: String) -> bool {
-        return selected_table == self.current_table;
-    }
+    // pub fn is_current_table(&self, selected_table: String) -> bool {
+    //     return selected_table == self.current_table;
+    // }
 }

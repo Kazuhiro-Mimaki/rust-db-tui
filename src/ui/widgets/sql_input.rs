@@ -16,7 +16,7 @@ impl<'a> SqlInputWdg<'a> {
         }
     }
 
-    pub fn widget(&self) -> Paragraph<'static> {
+    pub fn widget(&self) -> Paragraph<'a> {
         let block = Block::default()
             .borders(Borders::ALL)
             .title(self.title.to_string())

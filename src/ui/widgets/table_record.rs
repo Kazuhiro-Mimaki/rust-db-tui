@@ -38,7 +38,7 @@ impl<'a> TableRecordWdg<'a> {
         }
     }
 
-    pub fn widget(&self) -> Table<'static> {
+    pub fn widget(&self) -> Table<'a> {
         let block = Block::default()
             .title(self.title.to_string())
             .borders(Borders::ALL);

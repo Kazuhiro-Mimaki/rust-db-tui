@@ -13,6 +13,10 @@ impl MySqlClient {
         }
     }
 
+    pub async fn change_db(&mut self, new_db_url: &str) {
+        self.pool = MySqlPool::connect(new_db_url).await.unwrap();
+    }
+
     pub async fn get_db_list(&self) -> Vec<String> {
         let get_db_query = format!("{}", "SHOW DATABASES");
         let db_rows = sqlx::query(&get_db_query.as_str())
@@ -23,7 +27,7 @@ impl MySqlClient {
         return parse_sql_db(db_rows);
     }
 
-    pub async fn get_table_list(&self, db_name: &String) -> Vec<String> {
+    pub async fn get_table_list(&self, db_name: String) -> Vec<String> {
         let get_tables_query = format!("{} {}", "SHOW TABLE STATUS FROM", db_name);
         let table_rows = sqlx::query(&get_tables_query.as_str())
             .fetch_all(&self.pool)

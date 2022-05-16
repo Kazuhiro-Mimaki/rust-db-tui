@@ -6,21 +6,22 @@ use tui::{
 
 pub struct TableListWdg<'a> {
     title: &'a str,
-    pub tables: &'a Vec<String>,
+    pub tables: Vec<String>,
     pub table_select_state: ListState,
     pub current_table: String,
 }
 
 impl<'a> TableListWdg<'a> {
-    pub fn new(tables: &'a Vec<String>) -> Self {
+    pub fn new(tables: Vec<String>) -> Self {
         let mut table_select_state = ListState::default();
         table_select_state.select(Some(0));
+        let current_table = tables[0].clone();
 
         Self {
             title: "Tables",
             tables: tables,
             table_select_state: table_select_state,
-            current_table: tables[0].clone(),
+            current_table: current_table,
         }
     }
 
@@ -30,7 +31,8 @@ impl<'a> TableListWdg<'a> {
             .borders(Borders::ALL);
         let table_names: Vec<_> = self
             .tables
-            .iter()
+            .clone()
+            .into_iter()
             .map(|table_name| {
                 ListItem::new(Spans::from(vec![Span::styled(
                     table_name,
@@ -75,5 +77,9 @@ impl<'a> TableListWdg<'a> {
         if let Some(selected) = self.table_select_state.selected() {
             self.current_table = self.tables[selected].clone();
         }
+    }
+
+    pub fn change_tables(&mut self, new_tables: Vec<String>) {
+        self.tables = new_tables;
     }
 }
