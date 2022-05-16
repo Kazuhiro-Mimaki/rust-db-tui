@@ -11,8 +11,10 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     Frame, Terminal,
 };
-use ui::widgets::{ctx::WidgetCtx, tab::TableMode};
-use unicode_width::UnicodeWidthStr;
+use ui::{
+    layouts::{change_db::ChangeDBLayout, edit_sql::EditSQLLayout, normal::NormalLayout},
+    widgets::{ctx::WidgetCtx, tab::TableMode},
+};
 
 mod db;
 mod ui;
@@ -265,106 +267,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_layout<B: Backend>(f: &mut Frame<'_, B>, app: &mut App, widget_ctx: &mut WidgetCtx) {
     let size = f.size();
-
     widget_ctx.table_record.update_visible_range();
 
     match app.widget_mode {
         WidgetMode::Normal => {
-            let (chunks_1, chunks_2) = ui::layout::make_normal_layout(size);
-
-            // database widget
-            f.render_widget(widget_ctx.database.current_database_widget(), chunks_1[0]);
-
-            // table list widget
-            f.render_stateful_widget(
-                widget_ctx.table_list.widget(),
-                chunks_1[1],
-                &mut widget_ctx.table_list.table_select_state,
-            );
-            // sql input widget
-            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
-
-            // tab widget
-            f.render_widget(widget_ctx.tab.widget(), chunks_2[1]);
-
-            match widget_ctx.tab.mode {
-                TableMode::Records => {
-                    f.render_stateful_widget(
-                        // table record widget
-                        widget_ctx.table_record.widget(),
-                        chunks_2[2],
-                        &mut widget_ctx.table_record.select_row_list_state,
-                    );
-                }
-                TableMode::Columns => {
-                    f.render_stateful_widget(
-                        // table column widget
-                        widget_ctx.table_column.widget(),
-                        chunks_2[2],
-                        &mut widget_ctx.table_column.select_row_list_state,
-                    );
-                }
-            };
+            let normal_layout = NormalLayout::new(size);
+            normal_layout.render_layout(f, widget_ctx);
         }
         WidgetMode::ChangeDB => {
-            let (chunks_1, chunks_2) = ui::layout::make_change_db_layout(size);
-
-            // database widget
-            f.render_stateful_widget(
-                widget_ctx.database.expand_db_list_widget(),
-                chunks_1,
-                &mut widget_ctx.database.database_select_state,
-            );
-
-            // sql input widget
-            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
-
-            // tab widget
-            f.render_widget(widget_ctx.tab.widget(), chunks_2[1]);
-
-            match widget_ctx.tab.mode {
-                TableMode::Records => {
-                    // table record widget
-                    f.render_stateful_widget(
-                        widget_ctx.table_record.widget(),
-                        chunks_2[2],
-                        &mut widget_ctx.table_record.select_row_list_state,
-                    );
-                }
-                TableMode::Columns => {
-                    // table column widget
-                    f.render_stateful_widget(
-                        widget_ctx.table_column.widget(),
-                        chunks_2[2],
-                        &mut widget_ctx.table_column.select_row_list_state,
-                    );
-                }
-            };
+            let change_db_layout = ChangeDBLayout::new(size);
+            change_db_layout.render_layout(f, widget_ctx);
         }
         WidgetMode::EditSQL => {
-            let (chunks_1, chunks_2) = ui::layout::make_edit_sql_layout(size);
-
-            // database widget
-            f.render_widget(widget_ctx.database.current_database_widget(), chunks_1[0]);
-
-            // table list widget
-            f.render_stateful_widget(
-                widget_ctx.table_list.widget(),
-                chunks_1[1],
-                &mut widget_ctx.table_list.table_select_state,
-            );
-
-            // sql input widget
-            f.render_widget(widget_ctx.sql_input.widget(), chunks_2[0]);
-            f.set_cursor(
-                // Put cursor past the end of the input text
-                chunks_2[0].x + widget_ctx.sql_input.input.width() as u16 + 1,
-                // Move one line down, from the border to the input line
-                chunks_2[0].y + 1,
-            );
-
-            // sql output widget
-            f.render_widget(widget_ctx.sql_output.widget(), chunks_2[1]);
+            let edit_sql_layout = EditSQLLayout::new(size);
+            edit_sql_layout.render_layout(f, widget_ctx);
         }
     }
 }
