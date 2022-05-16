@@ -16,6 +16,8 @@ use ui::{
     widgets::{ctx::WidgetCtx, tab::TableMode},
 };
 
+use crate::ui::layouts::layout_trait::LayoutTrait;
+
 mod db;
 mod ui;
 mod utils;

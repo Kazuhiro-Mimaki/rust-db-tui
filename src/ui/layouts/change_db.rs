@@ -6,13 +6,15 @@ use tui::{
 
 use crate::ui::widgets::{ctx::WidgetCtx, tab::TableMode};
 
+use super::layout_trait::LayoutTrait;
+
 pub struct ChangeDBLayout {
-    left: Rect,
-    right: Vec<Rect>,
+    left_side_widget: Rect,
+    main_widget: Vec<Rect>,
 }
 
-impl ChangeDBLayout {
-    pub fn new(size: Rect) -> Self {
+impl LayoutTrait for ChangeDBLayout {
+    fn new(size: Rect) -> Self {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(15), Constraint::Length(85)].as_ref())
@@ -31,34 +33,34 @@ impl ChangeDBLayout {
             .split(chunks[1]);
 
         Self {
-            left: chunks[0],
-            right: chunks_2,
+            left_side_widget: chunks[0],
+            main_widget: chunks_2,
         }
     }
 
-    pub fn render_layout<B: Backend>(&self, f: &mut Frame<'_, B>, widget_ctx: &mut WidgetCtx) {
+    fn render_layout<B: Backend>(&self, f: &mut Frame<'_, B>, widget_ctx: &mut WidgetCtx) {
         f.render_stateful_widget(
             widget_ctx.database.expand_db_list_widget(),
-            self.left,
+            self.left_side_widget,
             &mut widget_ctx.database.database_select_state,
         );
 
-        f.render_widget(widget_ctx.sql_input.widget(), self.right[0]);
+        f.render_widget(widget_ctx.sql_input.widget(), self.main_widget[0]);
 
-        f.render_widget(widget_ctx.tab.widget(), self.right[1]);
+        f.render_widget(widget_ctx.tab.widget(), self.main_widget[1]);
 
         match widget_ctx.tab.mode {
             TableMode::Records => {
                 f.render_stateful_widget(
                     widget_ctx.table_record.widget(),
-                    self.right[2],
+                    self.main_widget[2],
                     &mut widget_ctx.table_record.select_row_list_state,
                 );
             }
             TableMode::Columns => {
                 f.render_stateful_widget(
                     widget_ctx.table_column.widget(),
-                    self.right[2],
+                    self.main_widget[2],
                     &mut widget_ctx.table_column.select_row_list_state,
                 );
             }
