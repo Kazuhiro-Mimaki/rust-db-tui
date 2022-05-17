@@ -1,23 +1,30 @@
+use std::env;
+
 use sqlx::{mysql::MySqlQueryResult, MySql, MySqlPool, Pool};
 
 use super::parser::{parse_sql_db, parse_sql_table_rows, parse_sql_tables};
 
 pub struct MySqlClient {
+    pub base_db_url: String,
     pub pool: Pool<MySql>,
 }
 
 impl MySqlClient {
-    pub async fn new(db_url: &str) -> Self {
+    pub async fn new() -> Self {
+        let base_db_url = env::var("DATABASE_URL").unwrap().to_string();
+
         Self {
-            pool: MySqlPool::connect(db_url).await.unwrap(),
+            base_db_url: base_db_url.clone(),
+            pool: MySqlPool::connect(&base_db_url).await.unwrap(),
         }
     }
 
-    pub async fn change_db(&mut self, new_db_url: &str) {
-        self.pool = MySqlPool::connect(new_db_url).await.unwrap();
+    pub async fn reconnect(&mut self, new_database: String) {
+        let new_db_url = format!("{}/{}", self.base_db_url, new_database);
+        self.pool = MySqlPool::connect(&new_db_url).await.unwrap();
     }
 
-    pub async fn get_db_list(&self) -> Vec<String> {
+    pub async fn get_database_list(&self) -> Vec<String> {
         let get_db_query = format!("{}", "SHOW DATABASES");
         let db_rows = sqlx::query(&get_db_query.as_str())
             .fetch_all(&self.pool)

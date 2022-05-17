@@ -5,8 +5,8 @@ use crossterm::{
 };
 use db::sql_client::MySqlClient;
 use dotenv::dotenv;
-use model::table::TableModel;
-use std::env;
+use model::{database::DatabaseModel, table::TableModel};
+
 use std::{error::Error, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -54,27 +54,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Set config
     dotenv().ok();
 
-    let db_url = format!("{}", &env::var("DATABASE_URL").unwrap());
-    let mut mysql_client = MySqlClient::new(&db_url).await;
-    let databases = mysql_client.get_db_list().await;
-    let default_database_name = &databases[0];
-
-    let new_db_url = format!(
-        "{}/{}",
-        &env::var("DATABASE_URL").unwrap(),
-        default_database_name.to_string()
-    );
-    mysql_client.change_db(&new_db_url).await;
+    let mut mysql_client = MySqlClient::new().await;
+    let database_model = DatabaseModel::new(&mysql_client).await;
+    database_model.set_default_database(&mut mysql_client).await;
 
     let table_names = mysql_client
-        .get_table_list(default_database_name.to_string())
+        .get_table_list(database_model.current_database)
         .await;
     let default_table_name = &table_names[0];
 
     let table_model = TableModel::new(&mysql_client, default_table_name.to_string()).await;
 
     let mut app = App::new();
-    let mut widget_ctx = WidgetCtx::new(databases, table_names, table_model);
+    let mut widget_ctx = WidgetCtx::new(database_model.databases, table_names, table_model);
 
     loop {
         terminal.draw(|f| render_layout(f, &mut app, &mut widget_ctx))?;
@@ -140,14 +132,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 },
                 WidgetMode::ChangeDB => match key.code {
                     KeyCode::Enter => {
+                        // change database
                         widget_ctx.database.change_database();
-                        // change db
-                        let new_db_url = format!(
-                            "{}/{}",
-                            &env::var("DATABASE_URL").unwrap(),
-                            widget_ctx.database.current_database.to_string()
-                        );
-                        mysql_client.change_db(&new_db_url).await;
+                        mysql_client
+                            .reconnect(widget_ctx.database.current_database.to_string())
+                            .await;
 
                         let new_tables = mysql_client
                             .get_table_list(widget_ctx.database.current_database.to_string())

@@ -1,8 +1,12 @@
 use crate::model::table::TableModel;
 
 use super::{
-    database::DatabaseWdg, sql_input::SqlInputWdg, sql_output::SqlOutputWdg, tab::TabWdg,
-    table_list::TableListWdg, table::{table::TableWdg, table_record::TableRecordWdg, table_column::TableColumnWdg},
+    database::DatabaseWdg,
+    sql_input::SqlInputWdg,
+    sql_output::SqlOutputWdg,
+    tab::TabWdg,
+    table::{table::TableWdg, table_column::TableColumnWdg, table_record::TableRecordWdg},
+    table_list::TableListWdg,
 };
 
 pub struct WidgetCtx<'a> {
