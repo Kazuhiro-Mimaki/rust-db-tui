@@ -5,6 +5,7 @@ use crossterm::{
 };
 use db::sql_client::MySqlClient;
 use dotenv::dotenv;
+use model::table::TableModel;
 use std::env;
 use std::{error::Error, io};
 use tui::{
@@ -19,6 +20,7 @@ use ui::{
 use crate::ui::layouts::layout_trait::LayoutTrait;
 
 mod db;
+mod model;
 mod ui;
 mod utils;
 
@@ -63,28 +65,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     );
     mysql_client.change_db(&new_db_url).await;
 
-    let tables = mysql_client
+    let table_names = mysql_client
         .get_table_list(default_database_name.to_string())
         .await;
-    let default_table_name = &tables[0];
+    let default_table_name = &table_names[0];
 
-    let (headers, records) = mysql_client
-        .get_table_records(default_table_name.to_string())
-        .await;
-
-    let (column_headers, column_items) = mysql_client
-        .get_table_columns(default_table_name.to_string())
-        .await;
+    let table_model = TableModel::new(&mysql_client, default_table_name.to_string()).await;
 
     let mut app = App::new();
-    let mut widget_ctx = WidgetCtx::new(
-        databases,
-        tables,
-        headers,
-        records,
-        column_headers,
-        column_items,
-    );
+    let mut widget_ctx = WidgetCtx::new(databases, table_names, table_model);
 
     loop {
         terminal.draw(|f| render_layout(f, &mut app, &mut widget_ctx))?;

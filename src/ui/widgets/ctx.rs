@@ -1,3 +1,5 @@
+use crate::model::table::TableModel;
+
 use super::{
     database::DatabaseWdg, sql_input::SqlInputWdg, sql_output::SqlOutputWdg, tab::TabWdg,
     table_column::TableColumnWdg, table_list::TableListWdg, table_record::TableRecordWdg,
@@ -14,14 +16,7 @@ pub struct WidgetCtx<'a> {
 }
 
 impl<'a> WidgetCtx<'a> {
-    pub fn new(
-        databases: Vec<String>,
-        tables: Vec<String>,
-        record_headers: Vec<String>,
-        record_items: Vec<Vec<String>>,
-        column_headers: Vec<String>,
-        column_items: Vec<Vec<String>>,
-    ) -> Self {
+    pub fn new(databases: Vec<String>, tables: Vec<String>, table_model: TableModel) -> Self {
         let default_table_name = tables[0].clone();
 
         Self {
@@ -29,13 +24,13 @@ impl<'a> WidgetCtx<'a> {
             table_list: TableListWdg::new(tables.clone()),
             table_record: TableRecordWdg::new(
                 default_table_name.to_string(),
-                record_headers,
-                record_items,
+                table_model.record.headers,
+                table_model.record.records,
             ),
             table_column: TableColumnWdg::new(
                 default_table_name.to_string(),
-                column_headers,
-                column_items,
+                table_model.column.headers,
+                table_model.column.columns,
             ),
             sql_input: SqlInputWdg::new(),
             sql_output: SqlOutputWdg::new(),
