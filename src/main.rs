@@ -18,6 +18,7 @@ use ui::{
 };
 
 use crate::ui::layouts::layout_trait::LayoutTrait;
+use crate::ui::layouts::layout_trait::NormalLayoutTrait;
 
 mod db;
 mod model;
@@ -105,68 +106,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         widget_ctx.tab.mode = TableMode::Columns;
                     }
                     KeyCode::Up => {
-                        match widget_ctx.tab.mode {
-                            TableMode::Records => {
-                                widget_ctx.table_record.move_up();
-                            }
-                            TableMode::Columns => {
-                                widget_ctx.table_column.move_up();
-                            }
-                        };
+                        widget_ctx.table.move_up();
                     }
                     KeyCode::Down => {
-                        match widget_ctx.tab.mode {
-                            TableMode::Records => {
-                                widget_ctx.table_record.move_down();
-                            }
-                            TableMode::Columns => {
-                                widget_ctx.table_column.move_down();
-                            }
-                        };
+                        widget_ctx.table.move_down();
                     }
                     KeyCode::Right => {
-                        match widget_ctx.tab.mode {
-                            TableMode::Records => {
-                                widget_ctx.table_record.move_right();
-                            }
-                            TableMode::Columns => {
-                                widget_ctx.table_column.move_right();
-                            }
-                        };
+                        widget_ctx.table.move_right();
                     }
                     KeyCode::Left => {
-                        match widget_ctx.tab.mode {
-                            TableMode::Records => {
-                                widget_ctx.table_record.move_left();
-                            }
-                            TableMode::Columns => {
-                                widget_ctx.table_column.move_left();
-                            }
-                        };
+                        widget_ctx.table.move_left();
                     }
                     KeyCode::Enter => {
                         widget_ctx.table_list.change_table();
                         if !widget_ctx
-                            .table_record
+                            .table
+                            .record_widget
                             .is_current_table(widget_ctx.table_list.current_table.to_string())
                         {
-                            // reset table records
-                            let (record_headers, record_fields) = mysql_client
-                                .get_table_records(widget_ctx.table_list.current_table.to_string())
-                                .await;
-                            widget_ctx.table_record.reset_default_records(
+                            // reset table
+                            let table_model = TableModel::new(
+                                &mysql_client,
                                 widget_ctx.table_list.current_table.to_string(),
-                                record_headers,
-                                record_fields,
-                            );
-                            // reset table columns
-                            let (column_headers, column_fields) = mysql_client
-                                .get_table_columns(widget_ctx.table_list.current_table.to_string())
-                                .await;
-                            widget_ctx.table_column.reset_default_records(
+                            )
+                            .await;
+                            widget_ctx.table.reset_table_widget(
                                 widget_ctx.table_list.current_table.to_string(),
-                                column_headers,
-                                column_fields,
+                                table_model,
                             );
                         }
                     }
@@ -190,24 +156,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         widget_ctx.table_list.change_table();
                         widget_ctx.table_list.change_tables(new_tables.clone());
 
-                        // reset table records
-                        let (record_headers, record_fields) = mysql_client
-                            .get_table_records(new_table_name.to_string())
-                            .await;
-                        widget_ctx.table_record.reset_default_records(
+                        // reset table
+                        let table_model =
+                            TableModel::new(&mysql_client, new_table_name.to_string()).await;
+                        widget_ctx.table.reset_table_widget(
                             widget_ctx.table_list.current_table.to_string(),
-                            record_headers,
-                            record_fields,
-                        );
-
-                        // reset table columns
-                        let (column_headers, column_fields) = mysql_client
-                            .get_table_columns(new_table_name.to_string())
-                            .await;
-                        widget_ctx.table_column.reset_default_records(
-                            widget_ctx.table_list.current_table.to_string(),
-                            column_headers,
-                            column_fields,
+                            table_model,
                         );
                         app.widget_mode = WidgetMode::Normal;
                     }
@@ -258,17 +212,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_layout<B: Backend>(f: &mut Frame<'_, B>, app: &mut App, widget_ctx: &mut WidgetCtx) {
     let size = f.size();
-    widget_ctx.table_record.update_visible_range();
+    widget_ctx.table.record_widget.update_visible_range();
 
     match app.widget_mode {
-        WidgetMode::Normal => {
-            let normal_layout = NormalLayout::new(size);
-            normal_layout.render_layout(f, widget_ctx);
-        }
-        WidgetMode::ChangeDB => {
-            let change_db_layout = ChangeDBLayout::new(size);
-            change_db_layout.render_layout(f, widget_ctx);
-        }
+        WidgetMode::Normal => match widget_ctx.tab.mode {
+            TableMode::Records => {
+                let normal_layout = NormalLayout::new(size);
+                normal_layout.render_record_table_layout(f, widget_ctx);
+            }
+            TableMode::Columns => {
+                let normal_layout = NormalLayout::new(size);
+                normal_layout.render_column_table_layout(f, widget_ctx);
+            }
+        },
+        WidgetMode::ChangeDB => match widget_ctx.tab.mode {
+            TableMode::Records => {
+                let change_db_layout = ChangeDBLayout::new(size);
+                change_db_layout.render_layout(f, widget_ctx);
+            }
+            TableMode::Columns => {
+                let change_db_layout = ChangeDBLayout::new(size);
+                change_db_layout.render_layout(f, widget_ctx);
+            }
+        },
         WidgetMode::EditSQL => {
             let edit_sql_layout = EditSQLLayout::new(size);
             edit_sql_layout.render_layout(f, widget_ctx);

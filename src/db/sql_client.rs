@@ -49,12 +49,12 @@ impl MySqlClient {
 
     pub async fn get_table_columns(&self, table_name: String) -> (Vec<String>, Vec<Vec<String>>) {
         let get_records_query = format!("{} {}", "SHOW COLUMNS FROM", table_name);
-        let record_rows = sqlx::query(&get_records_query.as_str())
+        let column_rows = sqlx::query(&get_records_query.as_str())
             .fetch_all(&self.pool)
             .await
             .unwrap();
 
-        return parse_sql_table_rows(record_rows);
+        return parse_sql_table_rows(column_rows);
     }
 
     pub async fn execute_input_query(

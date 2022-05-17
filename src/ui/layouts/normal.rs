@@ -4,16 +4,16 @@ use tui::{
     Frame,
 };
 
-use crate::ui::widgets::{ctx::WidgetCtx, tab::TableMode};
+use crate::ui::widgets::ctx::WidgetCtx;
 
-use super::layout_trait::LayoutTrait;
+use super::layout_trait::NormalLayoutTrait;
 
 pub struct NormalLayout {
     left_side_widget: Vec<Rect>,
     main_widget: Vec<Rect>,
 }
 
-impl LayoutTrait for NormalLayout {
+impl NormalLayoutTrait for NormalLayout {
     fn new(size: Rect) -> Self {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -43,7 +43,35 @@ impl LayoutTrait for NormalLayout {
         }
     }
 
-    fn render_layout<B: Backend>(&self, f: &mut Frame<'_, B>, widget_ctx: &mut WidgetCtx) {
+    fn render_record_table_layout<B: Backend>(
+        &self,
+        f: &mut Frame<'_, B>,
+        widget_ctx: &mut WidgetCtx,
+    ) {
+        self.render_base_layout(f, widget_ctx);
+
+        f.render_stateful_widget(
+            widget_ctx.table.record_widget.widget(),
+            self.main_widget[2],
+            &mut widget_ctx.table.record_widget.select_row_list_state,
+        );
+    }
+
+    fn render_column_table_layout<B: Backend>(
+        &self,
+        f: &mut Frame<'_, B>,
+        widget_ctx: &mut WidgetCtx,
+    ) {
+        self.render_base_layout(f, widget_ctx);
+
+        f.render_stateful_widget(
+            widget_ctx.table.column_widget.widget(),
+            self.main_widget[2],
+            &mut widget_ctx.table.column_widget.select_row_list_state,
+        );
+    }
+
+    fn render_base_layout<B: Backend>(&self, f: &mut Frame<'_, B>, widget_ctx: &mut WidgetCtx) {
         f.render_widget(
             widget_ctx.database.current_database_widget(),
             self.left_side_widget[0],
@@ -58,22 +86,5 @@ impl LayoutTrait for NormalLayout {
         f.render_widget(widget_ctx.sql_input.widget(), self.main_widget[0]);
 
         f.render_widget(widget_ctx.tab.widget(), self.main_widget[1]);
-
-        match widget_ctx.tab.mode {
-            TableMode::Records => {
-                f.render_stateful_widget(
-                    widget_ctx.table_record.widget(),
-                    self.main_widget[2],
-                    &mut widget_ctx.table_record.select_row_list_state,
-                );
-            }
-            TableMode::Columns => {
-                f.render_stateful_widget(
-                    widget_ctx.table_column.widget(),
-                    self.main_widget[2],
-                    &mut widget_ctx.table_column.select_row_list_state,
-                );
-            }
-        };
     }
 }

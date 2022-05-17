@@ -52,16 +52,16 @@ impl LayoutTrait for ChangeDBLayout {
         match widget_ctx.tab.mode {
             TableMode::Records => {
                 f.render_stateful_widget(
-                    widget_ctx.table_record.widget(),
+                    widget_ctx.table.record_widget.widget(),
                     self.main_widget[2],
-                    &mut widget_ctx.table_record.select_row_list_state,
+                    &mut widget_ctx.table.record_widget.select_row_list_state,
                 );
             }
             TableMode::Columns => {
                 f.render_stateful_widget(
-                    widget_ctx.table_column.widget(),
+                    widget_ctx.table.column_widget.widget(),
                     self.main_widget[2],
-                    &mut widget_ctx.table_column.select_row_list_state,
+                    &mut widget_ctx.table.column_widget.select_row_list_state,
                 );
             }
         };
