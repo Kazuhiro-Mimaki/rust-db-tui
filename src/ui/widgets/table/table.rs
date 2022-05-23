@@ -3,7 +3,6 @@ use crate::{model::table::TableModel, ui::widgets::tab::TableMode};
 use super::{table_column::TableColumnWdg, table_record::TableRecordWdg};
 
 pub struct TableWdg<'a> {
-    table_mode: TableMode,
     pub record_widget: TableRecordWdg<'a>,
     pub column_widget: TableColumnWdg<'a>,
 }
@@ -26,7 +25,6 @@ pub trait TableWdgTrait {
 impl<'a> TableWdg<'a> {
     pub fn new(record_widget: TableRecordWdg<'a>, column_widget: TableColumnWdg<'a>) -> Self {
         Self {
-            table_mode: TableMode::Records,
             record_widget: record_widget,
             column_widget: column_widget,
         }
@@ -37,8 +35,8 @@ impl<'a> TableWdg<'a> {
         self.column_widget = TableColumnWdg::new(selected_table.clone(), table_model.column);
     }
 
-    pub fn move_up(&mut self) {
-        match self.table_mode {
+    pub fn move_up(&mut self, table_mode: &TableMode) {
+        match table_mode {
             TableMode::Records => {
                 self.record_widget.move_up();
             }
@@ -48,8 +46,8 @@ impl<'a> TableWdg<'a> {
         };
     }
 
-    pub fn move_down(&mut self) {
-        match self.table_mode {
+    pub fn move_down(&mut self, table_mode: &TableMode) {
+        match table_mode {
             TableMode::Records => {
                 self.record_widget.move_down();
             }
@@ -59,8 +57,8 @@ impl<'a> TableWdg<'a> {
         };
     }
 
-    pub fn move_right(&mut self) {
-        match self.table_mode {
+    pub fn move_right(&mut self, table_mode: &TableMode) {
+        match table_mode {
             TableMode::Records => {
                 self.record_widget.move_right();
             }
@@ -70,8 +68,8 @@ impl<'a> TableWdg<'a> {
         };
     }
 
-    pub fn move_left(&mut self) {
-        match self.table_mode {
+    pub fn move_left(&mut self, table_mode: &TableMode) {
+        match table_mode {
             TableMode::Records => {
                 self.record_widget.move_left();
             }

@@ -98,16 +98,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         widget_ctx.tab.mode = TableMode::Columns;
                     }
                     KeyCode::Up => {
-                        widget_ctx.table.move_up();
+                        widget_ctx.table.move_up(&widget_ctx.tab.mode);
                     }
                     KeyCode::Down => {
-                        widget_ctx.table.move_down();
+                        widget_ctx.table.move_down(&widget_ctx.tab.mode);
                     }
                     KeyCode::Right => {
-                        widget_ctx.table.move_right();
+                        widget_ctx.table.move_right(&widget_ctx.tab.mode);
                     }
                     KeyCode::Left => {
-                        widget_ctx.table.move_left();
+                        widget_ctx.table.move_left(&widget_ctx.tab.mode);
                     }
                     KeyCode::Enter => {
                         widget_ctx.table_list.change_table();
