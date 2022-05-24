@@ -206,16 +206,10 @@ fn render_layout<B: Backend>(f: &mut Frame<'_, B>, app: &mut App, widget_ctx: &m
                 normal_layout.render_column_table_layout(f, widget_ctx);
             }
         },
-        WidgetMode::ChangeDB => match widget_ctx.tab.mode {
-            TableMode::Records => {
-                let change_db_layout = ChangeDBLayout::new(size);
-                change_db_layout.render_layout(f, widget_ctx);
-            }
-            TableMode::Columns => {
-                let change_db_layout = ChangeDBLayout::new(size);
-                change_db_layout.render_layout(f, widget_ctx);
-            }
-        },
+        WidgetMode::ChangeDB => {
+            let change_db_layout = ChangeDBLayout::new(size);
+            change_db_layout.render_layout(f, widget_ctx);
+        }
         WidgetMode::EditSQL => {
             let edit_sql_layout = EditSQLLayout::new(size);
             edit_sql_layout.render_layout(f, widget_ctx);
