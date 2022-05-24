@@ -1,4 +1,4 @@
-use crate::model::table::TableModel;
+use crate::model::database::DatabaseModel;
 
 use super::{
     database::DatabaseWdg,
@@ -19,16 +19,16 @@ pub struct WidgetCtx<'a> {
 }
 
 impl<'a> WidgetCtx<'a> {
-    pub fn new(databases: Vec<String>, tables: Vec<String>, table_model: TableModel) -> Self {
-        let default_table_name = tables[0].clone();
+    pub fn new(db_model: DatabaseModel) -> Self {
+        let default_table_name = db_model.current_table.name.clone();
         let table_record_widget =
-            TableRecordWdg::new(default_table_name.clone(), table_model.record);
+            TableRecordWdg::new(default_table_name.clone(), db_model.current_table.record);
         let table_column_widget =
-            TableColumnWdg::new(default_table_name.clone(), table_model.column);
+            TableColumnWdg::new(default_table_name.clone(), db_model.current_table.column);
 
         Self {
-            database: DatabaseWdg::new(databases.clone()),
-            table_list: TableListWdg::new(tables.clone()),
+            database: DatabaseWdg::new(db_model.databases.clone()),
+            table_list: TableListWdg::new(db_model.tables.clone()),
             table: TableWdg::new(table_record_widget, table_column_widget),
             sql_input: SqlInputWdg::new(),
             sql_output: SqlOutputWdg::new(),

@@ -55,18 +55,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
 
     let mut mysql_client = MySqlClient::new().await;
-    let database_model = DatabaseModel::new(&mysql_client).await;
-    database_model.set_default_database(&mut mysql_client).await;
-
-    let table_names = mysql_client
-        .get_table_list(database_model.current_database)
-        .await;
-    let default_table_name = &table_names[0];
-
-    let table_model = TableModel::new(&mysql_client, default_table_name.to_string()).await;
+    let database_model = DatabaseModel::new(&mut mysql_client).await;
 
     let mut app = App::new();
-    let mut widget_ctx = WidgetCtx::new(database_model.databases, table_names, table_model);
+    let mut widget_ctx = WidgetCtx::new(database_model);
 
     loop {
         terminal.draw(|f| render_layout(f, &mut app, &mut widget_ctx))?;

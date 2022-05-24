@@ -1,6 +1,7 @@
 use crate::db::sql_client::MySqlClient;
 
 pub struct TableModel {
+    pub name: String,
     pub record: TableRecordModel,
     pub column: TableColumnModel,
 }
@@ -30,6 +31,7 @@ impl TableModel {
         };
 
         Self {
+            name: table,
             record: table_record,
             column: table_column,
         }
